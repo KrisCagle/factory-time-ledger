@@ -49,4 +49,50 @@ module ApplicationHelper
     end
     [window_start, window_end, bars]
   end
+
+  # Why a draft for this project/activity can't be sent, or nil if it can.
+  def harvest_mapping_problem(project, activity)
+    return "No project" unless project
+    return "No Harvest project" if project.harvest_project_id.blank?
+
+    task_id = project.harvest_task_id_for(activity)
+    return "No Harvest task" if task_id.blank?
+
+    setting = LedgerSetting.current
+    return nil unless Harvest::Client.configured? && setting.harvest_projects_loaded?
+
+    harvest_project = project.harvest_project
+    return "Project not in your Harvest" unless harvest_project
+    return "Task not on this Harvest project" unless harvest_project.has_task?(task_id)
+
+    nil
+  end
+
+  # Label for a mapped Harvest project/task, using loaded names when available.
+  def harvest_mapping_label(project, activity)
+    task_id = project.harvest_task_id_for(activity)
+    if (harvest_project = project.harvest_project)
+      "#{harvest_project.name} / #{harvest_project.task_name(task_id) || "task ##{task_id}"}"
+    else
+      "##{project.harvest_project_id} / task ##{task_id}"
+    end
+  end
+
+  # <option> tags for a Harvest task picker. Keeps an unknown saved ID visible
+  # (flagged) rather than silently dropping it.
+  def harvest_task_options(harvest_project, selected_id)
+    tasks = harvest_project ? harvest_project.tasks.map { |t| [t["name"], t["id"]] } : []
+    if selected_id.present? && tasks.none? { |_, id| id.to_i == selected_id.to_i }
+      tasks.unshift(["##{selected_id} (not on this project)", selected_id])
+    end
+    options_for_select([["— pick a task —", ""]] + tasks, selected_id)
+  end
+
+  def harvest_project_options(harvest_projects, selected_id)
+    options = harvest_projects.map { |hp| [hp.label, hp.harvest_id] }
+    if selected_id.present? && options.none? { |_, id| id.to_i == selected_id.to_i }
+      options.unshift(["##{selected_id} (not in your Harvest)", selected_id])
+    end
+    options_for_select([["— pick a project —", ""]] + options, selected_id)
+  end
 end

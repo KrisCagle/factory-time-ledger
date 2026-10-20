@@ -34,21 +34,32 @@ The demo is dated relative to today. The **previous weekday** has a full day; **
 2. **Batches** → *Acme morning batch*. See how 40 minutes of overhead splits across five tickets by agent points (ACME-103, at 5 points, takes the biggest share). Open *Beacon batch*: one ticket is unsized, so the split falls back to agent time.
 3. **Tickets** → *ACME-103*. Human time vs. agent time and cost, one rework loop, and the full pipeline timeline.
 4. **Harvest drafts** → **← Prev**. Drafts for the day, one already approved. Edit hours or notes, approve, then **Send approved (dry run)** and expand *Payload* to see exactly what would be posted. Beacon tickets show *Not mapped* because that project has no Harvest IDs yet.
-5. **Settings**. Change the split rule and watch the Batches and Today pages change. Fill in Beacon's Harvest IDs and its drafts become sendable.
+5. **Settings**. Change the split rule and watch the Batches and Today pages change. The Harvest connection card walks through going live.
 6. On **Today** or any ticket, use **Track active time → Start working**. Heartbeats every 30 seconds (paused when the tab is hidden or you've been idle for 2 minutes) build a live attention span. Stop, reload, and it's on the timeline.
 
 ## Going live with Harvest
 
-1. Create a personal access token at https://id.getharvest.com/developers.
-2. Put it in `.env`:
+1. Create a personal access token at https://id.getharvest.com/developers. The page also shows your account ID.
+2. Put both in `.env` and restart (`bin/dev`):
    ```
    HARVEST_ACCESS_TOKEN=...
    HARVEST_ACCOUNT_ID=...
    ```
-3. In **Settings**, map each repo to its Harvest project ID and the three task IDs (Development, QA, Factory supervision). Review and QA both use the QA task.
-4. Restart the server. The drafts page switches to a red **Live mode** banner.
+3. In **Settings → Harvest connection**, click **Test connection**. It shows the account and person the token belongs to, and whether the account tracks durations or start/end times.
+4. Click **Load projects from Harvest**. This pulls in every project you're assigned to, with the tasks assigned to each.
+5. In **Projects → Harvest**, pick a Harvest project for each repo. Tasks whose names look like development, QA, and project management are filled in for you; check them, then **Save**.
+6. Do one safe test: on a real internal project, track a minute or two with **Start working**, refresh drafts, approve one, and send it. Confirm it in your Harvest timesheet, then delete it there.
 
-Entries post as the token's owner unless the person has a Harvest user ID set. v1 sends `hours`, which works for Harvest accounts that track durations. Accounts set to start/end timestamps will get a clear error from Harvest; that mode is not handled yet.
+### Safety checks
+
+While Harvest is connected, a draft is only sent when:
+
+- **Test connection** has passed, and the account tracks **durations**. Accounts set to start/end times are blocked, since v1 only sends hours; a Harvest admin can switch the account setting.
+- The draft's Harvest project is one **loaded from your Harvest**, and its task is **assigned to that project**.
+
+So demo data (which uses made-up Harvest IDs) and mistyped IDs are refused with a clear message instead of landing on the wrong project. Re-run **Load projects from Harvest** whenever your Harvest assignments change.
+
+Entries post as the token's owner. To post for a teammate, the token needs Harvest admin or manager rights and the person needs a Harvest user ID in Settings.
 
 ## Sending events from a factory
 

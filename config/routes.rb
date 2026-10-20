@@ -13,6 +13,10 @@ Rails.application.routes.draw do
   end
   resource :settings, only: %i[show update]
   resources :projects, only: %i[create update]
+  resource :harvest_connection, only: [] do
+    post :check
+    post :load_projects
+  end
   resources :people, only: %i[create]
   post "attention/heartbeat", to: "attention#heartbeat", as: :attention_heartbeat
 

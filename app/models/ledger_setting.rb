@@ -7,4 +7,9 @@ class LedgerSetting < ApplicationRecord
   def self.current = first_or_create!
 
   def idle_gap = idle_gap_minutes.minutes
+
+  def harvest_checked? = harvest_checked_at.present? && harvest_check_error.blank?
+
+  # Projects from Harvest are only trusted for safety checks once loaded.
+  def harvest_projects_loaded? = harvest_projects_synced_at.present?
 end

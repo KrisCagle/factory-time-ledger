@@ -18,42 +18,122 @@
   <p class="hint">Rounding of 6 matches Harvest's 0.1-hour increments. 0 or 1 keeps minute precision.</p>
 </section>
 
+<section class="card" id="harvest">
+  <div class="card-head">
+    <h2>Harvest connection</h2>
+    <% if @harvest_configured && @setting.harvest_checked? && !@setting.harvest_timestamp_mode %>
+      <%= status_pill("connected") %>
+    <% elsif @harvest_configured %>
+      <%= status_pill("needs check") %>
+    <% else %>
+      <%= status_pill("dry run") %>
+    <% end %>
+  </div>
+
+  <% if !@harvest_configured %>
+    <p>Not connected, so sending only shows what <em>would</em> be posted. To connect:</p>
+    <ol class="steps">
+      <li>Create a Personal Access Token at <a href="https://id.getharvest.com/developers" target="_blank" rel="noopener">id.getharvest.com/developers</a>.</li>
+      <li>Add <code>HARVEST_ACCESS_TOKEN</code> and <code>HARVEST_ACCOUNT_ID</code> to <code>.env</code>.</li>
+      <li>Restart the app (<code>bin/dev</code>), then come back here and click <strong>Test connection</strong>.</li>
+    </ol>
+  <% else %>
+    <dl class="facts">
+      <dt>Account</dt><dd><%= @setting.harvest_account_name || "—" %></dd>
+      <dt>Signed in as</dt><dd><%= @setting.harvest_user_name.presence || "—" %><%= " (#{@setting.harvest_user_email})" if @setting.harvest_user_email.present? %></dd>
+      <dt>Time tracking</dt>
+      <dd>
+        <% if @setting.harvest_timestamp_mode.nil? %>—
+        <% elsif @setting.harvest_timestamp_mode %><span class="warn">Start and end times. This app can only send durations, so sending is blocked. A Harvest admin can switch the account to durations.</span>
+        <% else %>Durations ✓<% end %>
+      </dd>
+      <dt>Last checked</dt><dd><%= @setting.harvest_checked_at ? time_ago_in_words(@setting.harvest_checked_at) + " ago" : "never" %></dd>
+      <dt>Projects</dt>
+      <dd><%= @setting.harvest_projects_loaded? ? "#{@harvest_projects.size} loaded #{time_ago_in_words(@setting.harvest_projects_synced_at)} ago" : "not loaded yet" %></dd>
+    </dl>
+    <% if @setting.harvest_check_error.present? %><p class="small warn"><%= @setting.harvest_check_error %></p><% end %>
+  <% end %>
+
+  <div class="actions">
+    <%= button_to "Test connection", check_harvest_connection_path, class: "btn", disabled: !@harvest_configured %>
+    <%= button_to "Load projects from Harvest", load_projects_harvest_connection_path, class: "btn", disabled: !@harvest_configured %>
+  </div>
+  <p class="hint">Sending to Harvest stays blocked until the connection is checked, the account tracks durations, and each project is one you've loaded from Harvest. That way demo data or a mistyped ID can't land on the wrong project.</p>
+</section>
+
 <section class="card">
   <h2>Projects → Harvest</h2>
-  <p class="hint">Each repo's time goes to one Harvest project. Review and QA share the QA task. Find IDs in Harvest's URLs or its API.</p>
-  <table class="table">
-    <thead><tr><th>Repo</th><th>Name</th><th>Harvest project ID</th><th>Dev task ID</th><th>QA task ID</th><th>Supervision task ID</th><th></th></tr></thead>
+  <% pickers = @harvest_projects.any? %>
+  <p class="hint">
+    Each repo's time goes to one Harvest project. Review and QA share the QA task.
+    <%= pickers ? "Picking a project fills in tasks whose names match; check them before saving." : "Load projects from Harvest above to pick from lists instead of typing IDs." %>
+  </p>
+  <table class="table" data-harvest-mapping data-harvest-tasks="<%= @harvest_projects.to_h { |hp| [hp.harvest_id, hp.tasks.map { |t| { id: t["id"], name: t["name"] } }] }.to_json %>">
+    <thead><tr><th>Repo</th><th>Name</th><th>Harvest project</th><th>Development task</th><th>QA task</th><th>Supervision task</th><th></th></tr></thead>
     <tbody>
-      <% @projects.each do |project| fid = "project_form_#{project.id}" %>
-        <tr>
-          <td class="small"><%= project.repo %></td>
-          <td><%= text_field_tag "project[name]", project.name, class: "input", form: fid %></td>
-          <% %i[harvest_project_id harvest_dev_task_id harvest_qa_task_id harvest_supervision_task_id].each do |field| %>
-            <td><%= number_field_tag "project[#{field}]", project.public_send(field), class: "input", form: fid %></td>
+      <% rows = @projects.map { |p| [p, "project_form_#{p.id}"] } + [[@new_project, "project_form_new"]] %>
+      <% rows.each do |project, fid| %>
+        <% hp = project.persisted? ? project.harvest_project : nil %>
+        <tr data-mapping-row>
+          <td class="small">
+            <% if project.persisted? %><%= project.repo %><% else %><%= text_field_tag "project[repo]", nil, placeholder: "owner/repo", class: "input", form: fid %><% end %>
+          </td>
+          <td><%= text_field_tag "project[name]", project.name, placeholder: "Display name", class: "input", form: fid %></td>
+          <% if pickers %>
+            <td><%= select_tag "project[harvest_project_id]", harvest_project_options(@harvest_projects, project.harvest_project_id), class: "input", form: fid, data: { role: "project" } %></td>
+            <% { harvest_dev_task_id: "dev", harvest_qa_task_id: "qa", harvest_supervision_task_id: "supervision" }.each do |field, role| %>
+              <td><%= select_tag "project[#{field}]", harvest_task_options(hp, project.public_send(field)), class: "input", form: fid, data: { role: } %></td>
+            <% end %>
+          <% else %>
+            <% %i[harvest_project_id harvest_dev_task_id harvest_qa_task_id harvest_supervision_task_id].each do |field| %>
+              <td><%= number_field_tag "project[#{field}]", project.public_send(field), placeholder: "ID", class: "input", form: fid %></td>
+            <% end %>
           <% end %>
           <td>
-            <%= form_with url: project_path(project), method: :patch, id: fid do %>
-              <button type="submit" class="btn btn-small">Save</button>
+            <%= form_with url: project.persisted? ? project_path(project) : projects_path, method: project.persisted? ? :patch : :post, id: fid do %>
+              <button type="submit" class="btn btn-small"><%= project.persisted? ? "Save" : "Add" %></button>
             <% end %>
-            <% unless project.harvest_mapped? %><span class="small warn">incomplete</span><% end %>
+            <% if project.persisted? %>
+              <% problem = Activity::ALL.filter_map { |a| harvest_mapping_problem(project, a) }.first %>
+              <% if problem %><div class="small warn"><%= problem %></div><% end %>
+            <% end %>
           </td>
         </tr>
       <% end %>
-      <tr>
-        <td><%= text_field_tag "project[repo]", nil, placeholder: "owner/repo", class: "input", form: "project_form_new" %></td>
-        <td><%= text_field_tag "project[name]", nil, placeholder: "Display name", class: "input", form: "project_form_new" %></td>
-        <% %i[harvest_project_id harvest_dev_task_id harvest_qa_task_id harvest_supervision_task_id].each do |field| %>
-          <td><%= number_field_tag "project[#{field}]", nil, class: "input", form: "project_form_new" %></td>
-        <% end %>
-        <td>
-          <%= form_with url: projects_path, method: :post, id: "project_form_new" do %>
-            <button type="submit" class="btn btn-small">Add</button>
-          <% end %>
-        </td>
-      </tr>
     </tbody>
   </table>
 </section>
+
+<script>
+(() => {
+  const table = document.querySelector("[data-harvest-mapping]");
+  if (!table || table.dataset.wired) return;
+  table.dataset.wired = "1";
+  const tasksByProject = JSON.parse(table.dataset.harvestTasks || "{}");
+  // Best-guess task for each slot, by name. Always shown for review before saving.
+  const patterns = {
+    dev: /develop|engineer|program|build|coding|implement/i,
+    qa: /\bqa\b|quality|test|review/i,
+    supervision: /supervis|project manag|management|\bpm\b|factory|planning|coordinat/i
+  };
+
+  table.querySelectorAll('[data-role="project"]').forEach(projectSelect => {
+    projectSelect.addEventListener("change", () => {
+      const row = projectSelect.closest("[data-mapping-row]");
+      const tasks = tasksByProject[projectSelect.value] || [];
+      Object.keys(patterns).forEach(role => {
+        const select = row.querySelector(`[data-role="${role}"]`);
+        if (!select) return;
+        select.innerHTML = "";
+        select.add(new Option("— pick a task —", ""));
+        tasks.forEach(t => select.add(new Option(t.name, t.id)));
+        const match = tasks.find(t => patterns[role].test(t.name));
+        if (match) select.value = String(match.id);
+      });
+    });
+  });
+})();
+</script>
 
 <section class="card">
   <h2>People</h2>
@@ -73,5 +153,5 @@
 <section class="card">
   <h2>Connecting factories</h2>
   <p>Factories post events to <code>POST <%= request.base_url %>/api/v1/events</code> and attention heartbeats to <code>POST <%= request.base_url %>/api/v1/attention</code>. See the README for the payload format.</p>
-  <p class="hint">API token: <%= ENV["LEDGER_API_TOKEN"].present? ? "set (send it as X-Ledger-Token)" : "not set, so local requests are accepted without one" %>. Harvest: <%= Harvest::Client.configured? ? "connected" : "not connected (dry run)" %>.</p>
+  <p class="hint">API token: <%= ENV["LEDGER_API_TOKEN"].present? ? "set (send it as X-Ledger-Token)" : "not set, so local requests are accepted without one" %>. Harvest: <%= Harvest::Client.configured? ? "token set" : "not connected (dry run)" %>.</p>
 </section>

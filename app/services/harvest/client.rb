@@ -2,10 +2,13 @@ require "net/http"
 require "json"
 
 module Harvest
-  # Minimal Harvest API v2 client. With no credentials configured it runs in
-  # dry-run mode: it builds the request but never sends it.
+  # Minimal Harvest API v2 client. With no credentials configured it is in
+  # dry-run mode: reads are unavailable and writes build the request but never
+  # send it.
   class Client
     API_BASE = "https://api.harvestapp.com/v2".freeze
+
+    class Error < StandardError; end
 
     Response = Struct.new(:ok, :dry_run, :entry_id, :error, :payload, keyword_init: true)
 
@@ -13,35 +16,75 @@ module Harvest
 
     def dry_run? = !self.class.configured?
 
+    # --- Reads ---------------------------------------------------------------
+
+    # Account-level settings. `wants_timestamp_timers` is true when the account
+    # tracks start/end times rather than durations.
+    def company = get("/company")
+
+    # The person the token belongs to.
+    def me = get("/users/me")
+
+    # Every project the token's owner is assigned to, with the tasks assigned to
+    # each project. Works for regular (non-admin) Harvest users.
+    def project_assignments
+      results = []
+      page = 1
+      loop do
+        body = get("/users/me/project_assignments?per_page=100&page=#{page}")
+        results.concat(body.fetch("project_assignments", []))
+        break if body["next_page"].blank?
+
+        page = body["next_page"]
+      end
+      results
+    end
+
+    # --- Writes --------------------------------------------------------------
+
     # Harvest accounts tracking time as durations accept `hours`. Accounts set
-    # to start/end timestamps need started_time/ended_time instead; that is not
-    # handled in v1 and Harvest will return an error explaining so.
+    # to start/end timestamps need started_time/ended_time instead; SendDraft
+    # refuses to send in that mode (see Settings → Test connection).
     def create_time_entry(payload)
       return Response.new(ok: true, dry_run: true, payload:) if dry_run?
 
-      uri = URI("#{API_BASE}/time_entries")
-      request = Net::HTTP::Post.new(uri, headers)
-      request.body = payload.to_json
-      response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 20) { |http| http.request(request) }
-      body = JSON.parse(response.body.presence || "{}")
-
-      if response.is_a?(Net::HTTPSuccess)
-        Response.new(ok: true, dry_run: false, entry_id: body["id"], payload:)
-      else
-        Response.new(ok: false, dry_run: false, error: "Harvest #{response.code}: #{body['message'] || response.body}", payload:)
-      end
-    rescue StandardError => e
-      Response.new(ok: false, dry_run: false, error: "#{e.class}: #{e.message}", payload:)
+      body = request(Net::HTTP::Post, "/time_entries", payload)
+      Response.new(ok: true, dry_run: false, entry_id: body["id"], payload:)
+    rescue Error, StandardError => e
+      Response.new(ok: false, dry_run: false, error: e.message, payload:)
     end
 
     private
+
+      def get(path)
+        raise Error, "Harvest isn't connected. Add HARVEST_ACCESS_TOKEN and HARVEST_ACCOUNT_ID to .env and restart." if dry_run?
+
+        request(Net::HTTP::Get, path)
+      end
+
+      def request(verb, path, payload = nil)
+        uri = URI("#{API_BASE}#{path}")
+        req = verb.new(uri, headers)
+        req.body = payload.to_json if payload
+        response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 20) { |http| http.request(req) }
+        body = response.body.present? ? JSON.parse(response.body) : {}
+        return body if response.is_a?(Net::HTTPSuccess)
+
+        message = body["message"] || body["error_description"] || body["error"] || response.message
+        raise Error, "Harvest #{response.code}: #{message}"
+      rescue JSON::ParserError
+        raise Error, "Harvest #{response&.code}: unexpected response"
+      rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED => e
+        raise Error, "Couldn't reach Harvest (#{e.class.name.demodulize})"
+      end
 
       def headers
         {
           "Authorization" => "Bearer #{ENV.fetch('HARVEST_ACCESS_TOKEN')}",
           "Harvest-Account-Id" => ENV.fetch("HARVEST_ACCOUNT_ID"),
-          "User-Agent" => "factory-time-ledger",
-          "Content-Type" => "application/json"
+          "User-Agent" => "factory-time-ledger (https://github.com/KrisCagle/factory-time-ledger)",
+          "Content-Type" => "application/json",
+          "Accept" => "application/json"
         }
       end
   end

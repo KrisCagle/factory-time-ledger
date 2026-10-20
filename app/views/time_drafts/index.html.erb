@@ -12,7 +12,12 @@
 </div>
 
 <% if @harvest_live %>
-  <div class="banner banner-live">Live mode: sending writes real time entries to Harvest.</div>
+  <% setting = LedgerSetting.current %>
+  <% if setting.harvest_checked? && setting.harvest_projects_loaded? && !setting.harvest_timestamp_mode %>
+    <div class="banner banner-live">Live mode: sending writes real time entries to <%= setting.harvest_account_name %> as <%= setting.harvest_user_name %>.</div>
+  <% else %>
+    <div class="banner banner-dry">Harvest token is set, but sending is blocked until you <%= link_to "test the connection and load your projects", settings_path(anchor: "harvest") %>.</div>
+  <% end %>
 <% else %>
   <div class="banner banner-dry">Dry run: Harvest isn't connected, so sending only shows what <em>would</em> be posted. Add HARVEST_ACCESS_TOKEN and HARVEST_ACCOUNT_ID to .env to go live.</div>
 <% end %>
@@ -35,10 +40,10 @@
             <td><%= link_to draft.work_item.jira_key, work_item_path(draft.work_item), class: "key" %><div class="muted small"><%= project&.name || "no project" %></div></td>
             <td>
               <%= activity_label(draft.activity) %>
-              <% if project.nil? || project.harvest_project_id.blank? || project.harvest_task_id_for(draft.activity).blank? %>
-                <div class="small warn"><%= link_to "Not mapped", settings_path %></div>
+              <% if (problem = harvest_mapping_problem(project, draft.activity)) %>
+                <div class="small warn"><%= link_to problem, settings_path(anchor: "harvest") %></div>
               <% else %>
-                <div class="muted small">#<%= project.harvest_project_id %> / task #<%= project.harvest_task_id_for(draft.activity) %></div>
+                <div class="muted small"><%= harvest_mapping_label(project, draft.activity) %></div>
               <% end %>
             </td>
             <td class="num small"><%= duration(draft.direct_seconds) %> + <%= duration(draft.overhead_seconds) %></td>

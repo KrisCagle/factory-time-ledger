@@ -16,6 +16,8 @@ class Project < ApplicationRecord
     end
   end
 
+  def harvest_project = harvest_project_id && HarvestProject.find_by(harvest_id: harvest_project_id)
+
   def harvest_mapped?
     harvest_project_id.present? && [harvest_dev_task_id, harvest_qa_task_id, harvest_supervision_task_id].all?(&:present?)
   end

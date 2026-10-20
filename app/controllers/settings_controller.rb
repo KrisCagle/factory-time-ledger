@@ -4,6 +4,8 @@ class SettingsController < ApplicationController
     @projects = Project.order(:name)
     @new_project = Project.new
     @new_person = Person.new
+    @harvest_configured = Harvest::Client.configured?
+    @harvest_projects = HarvestProject.active.ordered.to_a
   end
 
   def update
