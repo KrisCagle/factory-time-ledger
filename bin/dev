@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# Starts the app on port 3001 (3000 is often taken by other local apps).
+# Override with: PORT=4000 bin/dev
+exec bin/rails server -p "${PORT:-3001}" "$@"

@@ -21,6 +21,6 @@ FileUtils.chdir APP_ROOT do
   puts "\n== Preparing database (with demo data) =="
   system! "bin/rails db:drop db:create db:migrate db:seed"
 
-  puts "\n== Done. Start the app with: bin/rails server =="
-  puts "   Then open http://localhost:3000"
+  puts "\n== Done. Start the app with: bin/dev =="
+  puts "   Then open http://localhost:3001"
 end

@@ -17,10 +17,10 @@ Requirements: Ruby 3.2+, Bundler, and PostgreSQL 14+.
 git clone https://github.com/KrisCagle/factory-time-ledger.git
 cd factory-time-ledger
 bin/setup            # installs gems, creates .env, builds the database, loads demo data
-bin/rails server
+bin/dev              # starts on port 3001
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3001. To use a different port: `PORT=4000 bin/dev`.
 
 **No Postgres installed?** Use the bundled one: `docker compose up -d`, then in `.env` set `DB_USER=postgres`, `DB_PASSWORD=postgres`, `DB_PORT=5434` and re-run `bin/setup`. It uses port 5434 so it won't clash with Scarif's database.
 
@@ -102,7 +102,7 @@ If `LEDGER_API_TOKEN` is set in `.env`, send it as an `X-Ledger-Token` header. I
 Quick test from a terminal:
 
 ```bash
-curl -X POST localhost:3000/api/v1/attention -H 'Content-Type: application/json' \
+curl -X POST localhost:3001/api/v1/attention -H 'Content-Type: application/json' \
   -d '{"person_email":"demo.developer@example.com","activity":"review","jira_key":"BEACON-22"}'
 ```
 
