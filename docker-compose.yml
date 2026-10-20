@@ -1,12 +1,16 @@
-# Optional: a Postgres for this app if you don't have one installed.
-# Uses port 5434 so it won't clash with Scarif's or any other local Postgres.
-# If you use this, set DB_USER=postgres, DB_PASSWORD=postgres and DB_PORT=5434 in .env.
+# The app's own Postgres. bin/setup starts it. Port 5434 keeps it clear of
+# Scarif's or any other local Postgres on 5432.
 services:
   db:
     image: postgres:16
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
     ports:
       - "5434:5432"
     volumes:

@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
-# Installs gems, prepares the database, and loads demo data.
-# Safe to re-run: it resets the development database each time.
+# Installs gems, starts the app's Postgres (Docker), prepares the database,
+# and loads demo data. Safe to re-run: it resets the development database.
 require "fileutils"
 
 APP_ROOT = File.expand_path("..", __dir__)
@@ -9,13 +9,33 @@ def system!(*args)
   system(*args, exception: true)
 end
 
+def env_value(key)
+  line = File.readlines(".env").map(&:strip).find { |l| l.start_with?("#{key}=") }
+  line&.split("=", 2)&.last&.delete('"')
+end
+
 FileUtils.chdir APP_ROOT do
   puts "== Installing gems =="
   system("bundle check") || system!("bundle install")
 
   unless File.exist?(".env")
-    puts "== Creating .env from .env.example =="
+    puts "\n== Creating .env from .env.example =="
     FileUtils.cp ".env.example", ".env"
+  end
+
+  if env_value("USE_DOCKER_DB") == "false"
+    puts "\n== Using your own Postgres (USE_DOCKER_DB=false) =="
+  else
+    unless system("docker info > /dev/null 2>&1")
+      abort <<~MSG
+
+        Docker isn't running, and this app's database runs in Docker by default.
+        Either start Docker Desktop and re-run bin/setup, or point .env at your own
+        Postgres (DB_USER, DB_PASSWORD, DB_PORT) and set USE_DOCKER_DB=false.
+      MSG
+    end
+    puts "\n== Starting Postgres in Docker (port 5434) =="
+    system! "docker compose up -d --wait db"
   end
 
   puts "\n== Preparing database (with demo data) =="

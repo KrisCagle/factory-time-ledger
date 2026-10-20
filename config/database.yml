@@ -1,13 +1,13 @@
-# Defaults work with a local Postgres (Homebrew, Postgres.app) or the bundled
-# docker-compose.yml. Override any of these in .env (see .env.example).
+# Defaults match the bundled docker-compose.yml (Postgres on port 5434), which
+# bin/setup starts for you. To use another Postgres, override these in .env.
 default: &default
   adapter: postgresql
   encoding: unicode
   pool: <%= ENV.fetch("RAILS_MAX_THREADS", 5) %>
   host: <%= ENV.fetch("DB_HOST", "localhost") %>
-  port: <%= ENV.fetch("DB_PORT", 5432) %>
-  username: <%= ENV["DB_USER"] %>
-  password: <%= ENV["DB_PASSWORD"] %>
+  port: <%= ENV.fetch("DB_PORT", 5434) %>
+  username: <%= ENV.fetch("DB_USER", "postgres") %>
+  password: <%= ENV.fetch("DB_PASSWORD", "postgres") %>
 
 development:
   <<: *default

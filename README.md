@@ -11,20 +11,20 @@ It is factory-agnostic. Events use [Scarif](https://github.com/twinsunllc/scarif
 
 ## Run it locally
 
-Requirements: Ruby 3.2+, Bundler, and PostgreSQL 14+.
+Requirements: Ruby 3.2+, Bundler, and Docker Desktop (running).
 
 ```bash
 git clone https://github.com/KrisCagle/factory-time-ledger.git
 cd factory-time-ledger
-bin/setup            # installs gems, creates .env, builds the database, loads demo data
-bin/dev              # starts on port 3001
+bin/setup            # installs gems, starts Postgres in Docker, builds the database, loads demo data
+bin/dev              # starts the app on port 3001
 ```
 
 Open http://localhost:3001. To use a different port: `PORT=4000 bin/dev`.
 
-**No Postgres installed?** Use the bundled one: `docker compose up -d`, then in `.env` set `DB_USER=postgres`, `DB_PASSWORD=postgres`, `DB_PORT=5434` and re-run `bin/setup`. It uses port 5434 so it won't clash with Scarif's database.
+The app's database runs in Docker on port **5434**, so it won't clash with Scarif's or any other Postgres on 5432. `bin/setup` starts it for you and resets the development database each time, so re-run it whenever you want fresh demo data.
 
-`bin/setup` resets the development database each time, so re-run it whenever you want fresh demo data.
+**Prefer your own Postgres?** In `.env`, set `DB_USER`, `DB_PASSWORD` and `DB_PORT` to match it, set `USE_DOCKER_DB=false`, then run `bin/setup`.
 
 ## Click-through tour (demo data)
 
