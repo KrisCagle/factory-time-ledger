@@ -1,0 +1,77 @@
+<% content_for :title, "Settings" %>
+<div class="page-head"><div><h1>Settings</h1></div></div>
+
+<section class="card">
+  <h2>Attribution rules</h2>
+  <%= form_with model: @setting, url: settings_path, method: :patch, class: "form-row" do |f| %>
+    <label>Split batch overhead by
+      <%= f.select :split_rule, [["Agent points (falls back to agent time, then even)", "agent_points"], ["Agent time (falls back to even)", "agent_time"], ["Even split", "even"]], {}, class: "input" %>
+    </label>
+    <label>Idle after (minutes)
+      <%= f.number_field :idle_gap_minutes, min: 1, max: 60, class: "input input-small" %>
+    </label>
+    <label>Round entries to (minutes)
+      <%= f.number_field :rounding_minutes, min: 0, max: 60, class: "input input-small" %>
+    </label>
+    <%= f.submit "Save", class: "btn btn-primary" %>
+  <% end %>
+  <p class="hint">Rounding of 6 matches Harvest's 0.1-hour increments. 0 or 1 keeps minute precision.</p>
+</section>
+
+<section class="card">
+  <h2>Projects → Harvest</h2>
+  <p class="hint">Each repo's time goes to one Harvest project. Review and QA share the QA task. Find IDs in Harvest's URLs or its API.</p>
+  <table class="table">
+    <thead><tr><th>Repo</th><th>Name</th><th>Harvest project ID</th><th>Dev task ID</th><th>QA task ID</th><th>Supervision task ID</th><th></th></tr></thead>
+    <tbody>
+      <% @projects.each do |project| fid = "project_form_#{project.id}" %>
+        <tr>
+          <td class="small"><%= project.repo %></td>
+          <td><%= text_field_tag "project[name]", project.name, class: "input", form: fid %></td>
+          <% %i[harvest_project_id harvest_dev_task_id harvest_qa_task_id harvest_supervision_task_id].each do |field| %>
+            <td><%= number_field_tag "project[#{field}]", project.public_send(field), class: "input", form: fid %></td>
+          <% end %>
+          <td>
+            <%= form_with url: project_path(project), method: :patch, id: fid do %>
+              <button type="submit" class="btn btn-small">Save</button>
+            <% end %>
+            <% unless project.harvest_mapped? %><span class="small warn">incomplete</span><% end %>
+          </td>
+        </tr>
+      <% end %>
+      <tr>
+        <td><%= text_field_tag "project[repo]", nil, placeholder: "owner/repo", class: "input", form: "project_form_new" %></td>
+        <td><%= text_field_tag "project[name]", nil, placeholder: "Display name", class: "input", form: "project_form_new" %></td>
+        <% %i[harvest_project_id harvest_dev_task_id harvest_qa_task_id harvest_supervision_task_id].each do |field| %>
+          <td><%= number_field_tag "project[#{field}]", nil, class: "input", form: "project_form_new" %></td>
+        <% end %>
+        <td>
+          <%= form_with url: projects_path, method: :post, id: "project_form_new" do %>
+            <button type="submit" class="btn btn-small">Add</button>
+          <% end %>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h2>People</h2>
+  <ul class="plain">
+    <% people.each do |person| %>
+      <li><strong><%= person.name %></strong> <span class="muted"><%= person.email %></span><%= " · Harvest user ##{person.harvest_user_id}" if person.harvest_user_id %></li>
+    <% end %>
+  </ul>
+  <%= form_with model: @new_person, class: "form-row" do |f| %>
+    <%= f.text_field :name, placeholder: "Name", class: "input" %>
+    <%= f.email_field :email, placeholder: "Email (matches what factories send)", class: "input" %>
+    <%= f.number_field :harvest_user_id, placeholder: "Harvest user ID (optional)", class: "input" %>
+    <%= f.submit "Add person", class: "btn" %>
+  <% end %>
+</section>
+
+<section class="card">
+  <h2>Connecting factories</h2>
+  <p>Factories post events to <code>POST <%= request.base_url %>/api/v1/events</code> and attention heartbeats to <code>POST <%= request.base_url %>/api/v1/attention</code>. See the README for the payload format.</p>
+  <p class="hint">API token: <%= ENV["LEDGER_API_TOKEN"].present? ? "set (send it as X-Ledger-Token)" : "not set, so local requests are accepted without one" %>. Harvest: <%= Harvest::Client.configured? ? "connected" : "not connected (dry run)" %>.</p>
+</section>

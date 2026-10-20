@@ -1,0 +1,22 @@
+# Defaults work with a local Postgres (Homebrew, Postgres.app) or the bundled
+# docker-compose.yml. Override any of these in .env (see .env.example).
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS", 5) %>
+  host: <%= ENV.fetch("DB_HOST", "localhost") %>
+  port: <%= ENV.fetch("DB_PORT", 5432) %>
+  username: <%= ENV["DB_USER"] %>
+  password: <%= ENV["DB_PASSWORD"] %>
+
+development:
+  <<: *default
+  database: factory_time_ledger_development
+
+test:
+  <<: *default
+  database: factory_time_ledger_test
+
+production:
+  <<: *default
+  url: <%= ENV["DATABASE_URL"] %>

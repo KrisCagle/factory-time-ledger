@@ -1,0 +1,90 @@
+<%# Start/stop active-time tracking from inside the app. Sends a heartbeat
+    every 30 seconds while the tab is visible and you've moved or typed in the
+    last 2 minutes. Pass work_item: to lock it to one ticket. %>
+<% locked_item = local_assigns[:work_item] %>
+<section class="card timer" data-timer data-url="<%= attention_heartbeat_path %>">
+  <div class="timer-head">
+    <h2>Track active time</h2>
+    <span class="timer-status" data-timer-status>Not tracking</span>
+  </div>
+  <div class="timer-row">
+    <% if locked_item %>
+      <input type="hidden" data-timer-target="work_item_id" value="<%= locked_item.id %>">
+    <% else %>
+      <label>Working on
+        <select data-timer-target="target">
+          <optgroup label="Tickets">
+            <% WorkItem.where.not(status: %w[done cancelled]).order(:jira_key).each do |item| %>
+              <option value="item:<%= item.id %>"><%= item.jira_key %> — <%= item.summary.to_s.truncate(40) %></option>
+            <% end %>
+          </optgroup>
+          <optgroup label="Batch overhead">
+            <% Batch.order(started_at: :desc).limit(10).each do |batch| %>
+              <option value="batch:<%= batch.id %>"><%= batch.display_name %></option>
+            <% end %>
+          </optgroup>
+        </select>
+      </label>
+    <% end %>
+    <label>Doing
+      <select data-timer-target="activity">
+        <% Activity::ALL.each do |activity| %>
+          <option value="<%= activity %>" <%= "selected" if activity == (locked_item ? "review" : "supervision") %>><%= activity_label(activity) %></option>
+        <% end %>
+      </select>
+    </label>
+    <button type="button" class="btn btn-primary" data-timer-toggle>Start working</button>
+  </div>
+  <p class="hint">In real use, factories and tools send these heartbeats automatically. This button lets you try it by hand.</p>
+</section>
+
+<script>
+(() => {
+  const root = document.querySelector("[data-timer]");
+  if (!root || root.dataset.wired) return;
+  root.dataset.wired = "1";
+  const token = document.querySelector('meta[name="csrf-token"]')?.content;
+  const button = root.querySelector("[data-timer-toggle]");
+  const status = root.querySelector("[data-timer-status]");
+  const IDLE_MS = 2 * 60 * 1000;
+  let timer = null, lastInput = Date.now(), started = null;
+
+  ["mousemove", "keydown", "scroll", "click"].forEach(e => window.addEventListener(e, () => { lastInput = Date.now(); }, { passive: true }));
+
+  function body() {
+    const form = new FormData();
+    const fixed = root.querySelector('[data-timer-target="work_item_id"]');
+    if (fixed) form.append("work_item_id", fixed.value);
+    else {
+      const [kind, id] = root.querySelector('[data-timer-target="target"]').value.split(":");
+      form.append(kind === "item" ? "work_item_id" : "batch_id", id);
+    }
+    form.append("activity", root.querySelector('[data-timer-target="activity"]').value);
+    return form;
+  }
+
+  async function beat() {
+    if (document.hidden || Date.now() - lastInput > IDLE_MS) { status.textContent = "Paused (idle)"; return; }
+    try {
+      const res = await fetch(root.dataset.url, { method: "POST", body: body(), headers: { "X-CSRF-Token": token, "Accept": "application/json" } });
+      const json = await res.json();
+      const mins = Math.round(json.seconds / 60);
+      status.textContent = `Tracking · this span ${mins}m`;
+    } catch (e) { status.textContent = "Couldn't reach the app"; }
+  }
+
+  button.addEventListener("click", () => {
+    if (timer) {
+      clearInterval(timer); timer = null;
+      button.textContent = "Start working"; button.classList.add("btn-primary"); button.classList.remove("btn-danger");
+      status.textContent = "Stopped. Reload to see it on the timeline.";
+      root.querySelectorAll("select").forEach(s => s.disabled = false);
+    } else {
+      lastInput = Date.now(); started = Date.now();
+      beat(); timer = setInterval(beat, 30000);
+      button.textContent = "Stop"; button.classList.remove("btn-primary"); button.classList.add("btn-danger");
+      root.querySelectorAll("select").forEach(s => s.disabled = true);
+    }
+  });
+})();
+</script>

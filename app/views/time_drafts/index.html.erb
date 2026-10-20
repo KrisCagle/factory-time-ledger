@@ -1,0 +1,80 @@
+<% content_for :title, "Harvest drafts" %>
+<div class="page-head">
+  <div>
+    <h1>Harvest drafts <span class="muted"><%= selected_date.strftime("%a %b %-d") %></span></h1>
+    <p class="muted">What would be logged for <%= current_person.name %>. Nothing reaches Harvest until you approve and send it.</p>
+  </div>
+  <div class="day-nav">
+    <%= day_link selected_date - 1, "← Prev" %>
+    <%= day_link Date.current, "Today" unless selected_date == Date.current %>
+    <%= day_link selected_date + 1, "Next →" %>
+  </div>
+</div>
+
+<% if @harvest_live %>
+  <div class="banner banner-live">Live mode: sending writes real time entries to Harvest.</div>
+<% else %>
+  <div class="banner banner-dry">Dry run: Harvest isn't connected, so sending only shows what <em>would</em> be posted. Add HARVEST_ACCESS_TOKEN and HARVEST_ACCOUNT_ID to .env to go live.</div>
+<% end %>
+
+<div class="actions">
+  <%= button_to "Refresh drafts from attention data", generate_time_drafts_path(date: selected_date), class: "btn" %>
+  <%= button_to "Approve all", approve_all_time_drafts_path(date: selected_date), class: "btn", disabled: @drafts.none? { |d| d.status == "draft" } %>
+  <%= button_to(@harvest_live ? "Send approved to Harvest" : "Send approved (dry run)", send_approved_time_drafts_path(date: selected_date), class: "btn btn-primary", disabled: @drafts.none? { |d| d.status == "approved" }) %>
+</div>
+
+<section class="card">
+  <% if @drafts.empty? %>
+    <p class="empty">No drafts for this day. Click "Refresh drafts" to build them from the day's attention data.</p>
+  <% else %>
+    <table class="table drafts">
+      <thead><tr><th>Ticket</th><th>Harvest task</th><th class="num">Direct + overhead</th><th>Hours</th><th>Notes</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        <% @drafts.each do |draft| project = draft.work_item.project %>
+          <tr class="<%= 'row-sent' if draft.status == 'sent' %>">
+            <td><%= link_to draft.work_item.jira_key, work_item_path(draft.work_item), class: "key" %><div class="muted small"><%= project&.name || "no project" %></div></td>
+            <td>
+              <%= activity_label(draft.activity) %>
+              <% if project.nil? || project.harvest_project_id.blank? || project.harvest_task_id_for(draft.activity).blank? %>
+                <div class="small warn"><%= link_to "Not mapped", settings_path %></div>
+              <% else %>
+                <div class="muted small">#<%= project.harvest_project_id %> / task #<%= project.harvest_task_id_for(draft.activity) %></div>
+              <% end %>
+            </td>
+            <td class="num small"><%= duration(draft.direct_seconds) %> + <%= duration(draft.overhead_seconds) %></td>
+            <% if draft.status == "sent" %>
+              <td><%= draft.hours %></td>
+              <td class="small"><%= draft.notes %></td>
+              <td><%= status_pill(draft.status) %><div class="muted small">entry #<%= draft.harvest_time_entry_id %></div></td>
+              <td></td>
+            <% else %>
+              <% fid = "draft_form_#{draft.id}" %>
+              <td><%= number_field_tag "time_draft[hours]", draft.hours, step: 0.01, min: 0, class: "input input-hours", form: fid %></td>
+              <td><%= text_area_tag "time_draft[notes]", draft.notes, rows: 2, class: "input input-notes", form: fid %></td>
+              <td>
+                <%= select_tag "time_draft[status]", options_for_select([["Draft", "draft"], ["Approved", "approved"]], draft.status == "approved" ? "approved" : "draft"), class: "input", form: fid %>
+                <% if draft.status == "failed" %><div><%= status_pill("failed") %></div><% end %>
+              </td>
+              <td>
+                <%= form_with url: time_draft_path(draft, date: selected_date), method: :patch, id: fid do %>
+                  <button type="submit" class="btn btn-small">Save</button>
+                <% end %>
+              </td>
+            <% end %>
+          </tr>
+          <% if draft.last_error.present? || draft.last_payload.present? %>
+            <tr class="detail-row">
+              <td colspan="7">
+                <% if draft.last_error.present? %><div class="small warn"><%= draft.last_error %></div><% end %>
+                <% if draft.last_payload.present? %>
+                  <details><summary class="small">Payload <%= draft.status == "sent" ? "sent" : "that would be sent" %></summary><pre><%= JSON.pretty_generate(draft.last_payload) %></pre></details>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        <% end %>
+      </tbody>
+      <tfoot><tr><td colspan="3">Total</td><td class="strong"><%= @drafts.sum(&:hours) %>h</td><td colspan="3"></td></tr></tfoot>
+    </table>
+  <% end %>
+</section>

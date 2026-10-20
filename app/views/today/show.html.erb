@@ -1,0 +1,77 @@
+<% content_for :title, "Today" %>
+<% window_start, window_end, bars = timeline_bars(@attribution) %>
+
+<div class="page-head">
+  <div>
+    <h1><%= selected_date == Date.current ? "Today" : selected_date.strftime("%A") %> <span class="muted"><%= selected_date.strftime("%b %-d, %Y") %></span></h1>
+    <p class="muted"><%= current_person.name %>'s active time, attributed to tickets.</p>
+  </div>
+  <div class="day-nav">
+    <%= day_link selected_date - 1, "← Prev" %>
+    <%= day_link Date.current, "Today" unless selected_date == Date.current %>
+    <%= day_link selected_date + 1, "Next →" %>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><span class="stat-label">Attributed</span><span class="stat-value"><%= duration(@result.total_attributed_seconds) %></span></div>
+  <div class="stat"><span class="stat-label">Direct on tickets</span><span class="stat-value"><%= duration(@result.lines.sum(&:direct_seconds)) %></span></div>
+  <div class="stat"><span class="stat-label">Batch overhead</span><span class="stat-value"><%= duration(@result.lines.sum(&:overhead_seconds)) %></span></div>
+  <div class="stat"><span class="stat-label">Unattributed</span><span class="stat-value <%= 'warn' if @result.unattributed_seconds.positive? %>"><%= duration(@result.unattributed_seconds) %></span></div>
+</div>
+
+<section class="card">
+  <h2>Timeline</h2>
+  <% if bars.empty? %>
+    <p class="empty">No active time recorded for this day.</p>
+  <% else %>
+    <div class="timeline">
+      <% bars.each do |bar| %>
+        <div class="bar bar-<%= bar[:kind] %> act-<%= bar[:activity] %>" style="left: <%= bar[:left] %>%; width: <%= bar[:width] %>%;" title="<%= bar[:title] %>">
+          <span><%= bar[:label] %></span>
+        </div>
+      <% end %>
+    </div>
+    <div class="timeline-axis">
+      <span><%= window_start.strftime("%-l:%M %p") %></span>
+      <span><%= window_end.strftime("%-l:%M %p") %></span>
+    </div>
+    <div class="legend">
+      <span><i class="swatch bar-direct"></i>On a ticket</span>
+      <span><i class="swatch bar-overhead"></i>Batch overhead</span>
+      <span><i class="swatch bar-none"></i>Unattributed</span>
+    </div>
+  <% end %>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <h2>Where the time goes</h2>
+    <%= link_to "Turn into Harvest drafts →", time_drafts_path(date: selected_date), class: "btn" %>
+  </div>
+  <% if @lines.empty? %>
+    <p class="empty">Nothing attributed yet.</p>
+  <% else %>
+    <table class="table">
+      <thead><tr><th>Ticket</th><th>Activity</th><th class="num">Direct</th><th class="num">Overhead share</th><th class="num">Total</th></tr></thead>
+      <tbody>
+        <% @lines.each do |line| item = @attribution.work_items_by_id[line.work_item_id] %>
+          <tr>
+            <td><%= link_to item.jira_key, work_item_path(item), class: "key" %> <span class="muted"><%= item.summary.to_s.truncate(48) %></span></td>
+            <td><%= activity_label(line.activity) %></td>
+            <td class="num"><%= duration(line.direct_seconds) %></td>
+            <td class="num"><%= line.overhead_seconds.positive? ? duration(line.overhead_seconds) : "—" %></td>
+            <td class="num strong"><%= duration(line.total_seconds) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <% @result.batch_splits.each do |split| batch = @attribution.batches_by_id[split.batch_id] %>
+      <p class="hint">
+        <%= link_to batch&.display_name || "Batch", batch_path(split.batch_id) %>: <%= duration(split.pool_seconds) %> of overhead split by <strong><%= rule_label(split.rule_used || "nothing (no tickets)") %></strong><%= " (fell back from #{rule_label(split.requested_rule)})" if split.rule_used && split.rule_used != split.requested_rule %>.
+      </p>
+    <% end %>
+  <% end %>
+</section>
+
+<%= render "shared/work_timer" %>

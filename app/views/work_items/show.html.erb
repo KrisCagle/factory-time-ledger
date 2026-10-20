@@ -1,0 +1,77 @@
+<% content_for :title, @work_item.jira_key %>
+<% direct = @work_item.direct_seconds_by_activity %>
+<% drafted = @work_item.drafted_seconds_by_activity %>
+<div class="page-head">
+  <div>
+    <p class="crumb"><%= link_to "Tickets", work_items_path %> /</p>
+    <h1><%= @work_item.jira_key %> <%= status_pill(@work_item.status) %></h1>
+    <p class="muted"><%= @work_item.summary %></p>
+    <p class="muted small">
+      <%= @work_item.project&.repo || "No project" %>
+      <% if @work_item.batch %> · <%= link_to @work_item.batch.display_name, batch_path(@work_item.batch) %><% end %>
+      · <%= @work_item.agent_points ? "#{@work_item.agent_points} agent points" : "unsized" %>
+      · via <%= @work_item.source %>
+    </p>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><span class="stat-label">Human (direct)</span><span class="stat-value"><%= duration(direct.values.sum) %></span></div>
+  <div class="stat"><span class="stat-label">Drafted to Harvest</span><span class="stat-value"><%= duration(drafted.values.sum) %></span></div>
+  <div class="stat"><span class="stat-label">Agent time</span><span class="stat-value"><%= duration(@work_item.agent_seconds) %></span></div>
+  <div class="stat"><span class="stat-label">Agent cost</span><span class="stat-value"><%= money(@work_item.agent_cost_usd) %></span></div>
+  <div class="stat"><span class="stat-label">Rework loops</span><span class="stat-value <%= 'warn' if @work_item.rework_count.positive? %>"><%= @work_item.rework_count %></span></div>
+</div>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>Human time by activity</h2>
+    <table class="table">
+      <thead><tr><th>Activity</th><th class="num">Direct</th><th class="num">Drafted (incl. overhead)</th></tr></thead>
+      <tbody>
+        <% Activity::ALL.each do |activity| %>
+          <% next if direct[activity].to_i.zero? && drafted[activity].to_i.zero? %>
+          <tr><td><%= activity_label(activity) %></td><td class="num"><%= duration(direct[activity]) %></td><td class="num"><%= duration(drafted[activity]) %></td></tr>
+        <% end %>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Agent runs</h2>
+    <% if @work_item.agent_runs.empty? %>
+      <p class="empty">No agent runs recorded.</p>
+    <% else %>
+      <table class="table">
+        <thead><tr><th>Stage</th><th>Started</th><th class="num">Time</th><th class="num">Cost</th></tr></thead>
+        <tbody>
+          <% @work_item.agent_runs.sort_by { |r| r.started_at || Time.current }.each do |run| %>
+            <tr>
+              <td><%= run.stage_type&.humanize || run.external_id %></td>
+              <td><%= run.started_at&.strftime("%b %-d, %-l:%M %p") || "—" %></td>
+              <td class="num"><%= run.completed_at ? duration(run.seconds) : "running" %></td>
+              <td class="num"><%= run.cost_usd ? money(run.cost_usd) : "—" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+  </section>
+</div>
+
+<section class="card">
+  <h2>Pipeline timeline</h2>
+  <ol class="events">
+    <% @work_item.pipeline_events.each do |event| %>
+      <li class="event event-<%= event.event_type.dasherize %>">
+        <span class="event-time"><%= event.occurred_at.strftime("%b %-d, %-l:%M %p") %></span>
+        <span class="event-label"><%= event.label %></span>
+        <% details = event.data.slice("stage_type", "cost_usd", "pr_number", "conclusion", "reason") %>
+        <% if details.any? %><span class="muted small"><%= details.map { |k, v| "#{k.humanize.downcase}: #{v}" }.join(" · ") %></span><% end %>
+        <% if event.person %><span class="muted small">— <%= event.person.name %></span><% end %>
+      </li>
+    <% end %>
+  </ol>
+</section>
+
+<%= render "shared/work_timer", work_item: @work_item %>

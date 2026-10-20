@@ -1,0 +1,38 @@
+<% content_for :title, "Tickets" %>
+<div class="page-head">
+  <div>
+    <h1>Tickets</h1>
+    <p class="muted">Human time vs. agent time and cost, per ticket.</p>
+  </div>
+  <div class="filters">
+    <%= link_to "All", work_items_path, class: ["btn btn-ghost", ("active" if params[:status].blank?)] %>
+    <% WorkItem::STATUSES.each do |status| %>
+      <%= link_to status.humanize, work_items_path(status:), class: ["btn btn-ghost", ("active" if params[:status] == status)] %>
+    <% end %>
+  </div>
+</div>
+
+<section class="card">
+  <% if @work_items.empty? %>
+    <p class="empty">No tickets yet. They appear when a factory sends its first event.</p>
+  <% else %>
+    <table class="table">
+      <thead><tr><th>Ticket</th><th>Project</th><th>Batch</th><th>Status</th><th class="num">Human (direct)</th><th class="num">Drafted</th><th class="num">Agent time</th><th class="num">Agent cost</th><th class="num">Rework</th></tr></thead>
+      <tbody>
+        <% @work_items.each do |item| %>
+          <tr>
+            <td><%= link_to item.jira_key, work_item_path(item), class: "key" %> <span class="muted"><%= item.summary.to_s.truncate(40) %></span></td>
+            <td><%= item.project&.name || "—" %></td>
+            <td><%= item.batch ? link_to(item.batch.display_name, batch_path(item.batch)) : "—" %></td>
+            <td><%= status_pill(item.status) %></td>
+            <td class="num"><%= duration(item.attention_spans.sum(&:seconds)) %></td>
+            <td class="num"><%= duration(item.time_drafts.sum(&:total_seconds)) %></td>
+            <td class="num"><%= duration(item.agent_seconds) %></td>
+            <td class="num"><%= money(item.agent_cost_usd) %></td>
+            <td class="num <%= 'warn' if item.rework_count.positive? %>"><%= item.rework_count %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+</section>

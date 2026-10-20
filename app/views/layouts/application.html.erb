@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title><%= content_for?(:title) ? "#{yield(:title)} · Factory Time Ledger" : "Factory Time Ledger" %></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= stylesheet_link_tag "application" %>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">⏱</span> Factory Time Ledger</div>
+      <nav class="nav">
+        <%= nav_link "Today", today_path, "today" %>
+        <%= nav_link "Batches", batches_path, "batches" %>
+        <%= nav_link "Tickets", work_items_path, "work_items" %>
+        <%= nav_link "Harvest drafts", time_drafts_path, "time_drafts" %>
+        <%= nav_link "Settings", settings_path, "settings" %>
+      </nav>
+      <% if people.any? %>
+        <%= form_with url: request.path, method: :get, class: "person-picker", data: { turbo: false } do %>
+          <% request.query_parameters.except("person_id").each do |key, value| %>
+            <%= hidden_field_tag key, value %>
+          <% end %>
+          <%= select_tag :person_id, options_from_collection_for_select(people, :id, :name, current_person&.id), onchange: "this.form.submit()", "aria-label": "Viewing time for" %>
+        <% end %>
+      <% end %>
+    </header>
+
+    <main class="page">
+      <% if notice.present? %><div class="flash flash-notice"><%= notice %></div><% end %>
+      <% if alert.present? %><div class="flash flash-alert"><%= alert %></div><% end %>
+      <%= yield %>
+    </main>
+  </body>
+</html>

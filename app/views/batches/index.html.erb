@@ -1,0 +1,30 @@
+<% content_for :title, "Batches" %>
+<div class="page-head">
+  <div>
+    <h1>Batches</h1>
+    <p class="muted">Groups of tickets put into a factory together, and the shared time spent running them.</p>
+  </div>
+</div>
+
+<section class="card">
+  <% if @batches.empty? %>
+    <p class="empty">No batches yet. They appear when a factory sends events with a batch_id.</p>
+  <% else %>
+    <table class="table">
+      <thead><tr><th>Batch</th><th>Started</th><th>By</th><th class="num">Tickets</th><th class="num">Overhead</th><th class="num">Agent time</th><th class="num">Agent cost</th></tr></thead>
+      <tbody>
+        <% @batches.each do |batch| %>
+          <tr>
+            <td><%= link_to batch.display_name, batch_path(batch), class: "strong" %> <span class="muted"><%= batch.source %></span></td>
+            <td><%= batch.started_at.strftime("%b %-d, %-l:%M %p") %></td>
+            <td><%= batch.started_by&.name || "—" %></td>
+            <td class="num"><%= batch.work_items.size %></td>
+            <td class="num"><%= duration(batch.overhead_seconds) %></td>
+            <td class="num"><%= duration(batch.work_items.sum(&:agent_seconds)) %></td>
+            <td class="num"><%= money(batch.work_items.sum(&:agent_cost_usd)) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+</section>

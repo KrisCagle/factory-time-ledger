@@ -1,0 +1,26 @@
+#!/usr/bin/env ruby
+# Installs gems, prepares the database, and loads demo data.
+# Safe to re-run: it resets the development database each time.
+require "fileutils"
+
+APP_ROOT = File.expand_path("..", __dir__)
+
+def system!(*args)
+  system(*args, exception: true)
+end
+
+FileUtils.chdir APP_ROOT do
+  puts "== Installing gems =="
+  system("bundle check") || system!("bundle install")
+
+  unless File.exist?(".env")
+    puts "== Creating .env from .env.example =="
+    FileUtils.cp ".env.example", ".env"
+  end
+
+  puts "\n== Preparing database (with demo data) =="
+  system! "bin/rails db:drop db:create db:migrate db:seed"
+
+  puts "\n== Done. Start the app with: bin/rails server =="
+  puts "   Then open http://localhost:3000"
+end
