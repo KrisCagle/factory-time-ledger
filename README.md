@@ -16,13 +16,15 @@ Requirements: Ruby 3.2+, Bundler, and Docker Desktop (running).
 ```bash
 git clone https://github.com/KrisCagle/factory-time-ledger.git
 cd factory-time-ledger
-bin/setup            # installs gems, starts Postgres in Docker, builds the database, loads demo data
+bin/setup            # installs gems, starts Postgres in Docker, builds the database (with demo data the first time)
 bin/dev              # starts the app on port 3001
 ```
 
 Open http://localhost:3001. To use a different port: `PORT=4000 bin/dev`.
 
-The app's database runs in Docker on port **5434**, so it won't clash with Scarif's or any other Postgres on 5432. `bin/setup` starts it for you and resets the development database each time, so re-run it whenever you want fresh demo data.
+The app's database runs in Docker on port **5434**, so it won't clash with Scarif's or any other Postgres on 5432. `bin/setup` starts it for you.
+
+`bin/setup` is safe to re-run: it only creates and migrates, and never deletes data. Demo data is loaded only into a brand-new database. To wipe everything and start over with fresh demo data, run `bin/setup --reset` (don't do this once you're logging real time).
 
 **Prefer your own Postgres?** In `.env`, set `DB_USER`, `DB_PASSWORD` and `DB_PORT` to match it, set `USE_DOCKER_DB=false`, then run `bin/setup`.
 
@@ -39,16 +41,20 @@ The demo is dated relative to today. The **previous weekday** has a full day; **
 
 ## Going live with Harvest
 
-1. Create a personal access token at https://id.getharvest.com/developers. The page also shows your account ID.
-2. Put both in `.env` and restart (`bin/dev`):
+**Settings → Harvest connection** has a *Going live* checklist that tracks each step:
+
+1. **Add your Harvest token.** Create a personal access token at https://id.getharvest.com/developers (the page also shows your account ID), put both in `.env`, and restart `bin/dev`:
    ```
    HARVEST_ACCESS_TOKEN=...
    HARVEST_ACCOUNT_ID=...
    ```
-3. In **Settings → Harvest connection**, click **Test connection**. It shows the account and person the token belongs to, and whether the account tracks durations or start/end times.
-4. Click **Load projects from Harvest**. This pulls in every project you're assigned to, with the tasks assigned to each.
-5. In **Projects → Harvest**, pick a Harvest project for each repo. Tasks whose names look like development, QA, and project management are filled in for you; check them, then **Save**.
-6. Do one safe test: on a real internal project, track a minute or two with **Start working**, refresh drafts, approve one, and send it. Confirm it in your Harvest timesheet, then delete it there.
+2. **Test the connection.** Shows the account and person the token belongs to, and confirms the account tracks durations. It also adds you as a person if you aren't one yet.
+3. **Load your projects from Harvest.** Pulls in every project you're assigned to, with the tasks assigned to each.
+4. **Map a repo.** In *Projects → Harvest*, pick a Harvest project for each repo. Tasks that look like development, QA, and project management are filled in for you; check them, then **Save**.
+5. **Run a test entry.** Creates a 0.01-hour entry on the project, reads it back, deletes it, and confirms it's gone. Nothing is left in your timesheet.
+6. **Send and verify a real entry.** Add a real ticket on the **Tickets** page (or let a factory send one), track time on it with **Start working**, refresh drafts, approve, and send. Each sent entry is read back from Harvest and marked *verified*. **Undo** deletes it from Harvest and puts the draft back to approved.
+
+**Before step 6, remove the demo data** (Settings → *Remove demo data*, or `bin/rails ledger:remove_demo`) so your Today page and drafts only show real work. Real tickets, projects, people, and Harvest settings are kept.
 
 ### Safety checks
 
@@ -134,6 +140,10 @@ Refreshing drafts re-runs this for the day. Approved and sent drafts are never c
 bin/rails test                                   # everything
 ruby -Ilib test/lib/attribution_engine_test.rb   # just the attribution rules, no database needed
 ```
+
+Harvest is tested against `test/support/fake_harvest_client.rb`, an in-memory stand-in that answers like the real API, so tests never touch a real Harvest account.
+
+GitHub Actions runs every migration from scratch and the full suite on each push to `main` (`.github/workflows/ci.yml`).
 
 ## Roadmap
 
