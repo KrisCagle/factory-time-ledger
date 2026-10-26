@@ -21,7 +21,9 @@
 <section class="card" id="harvest">
   <div class="card-head">
     <h2>Harvest connection</h2>
-    <% if @harvest_configured && @setting.harvest_checked? && !@setting.harvest_timestamp_mode %>
+    <% if @checklist.complete? %>
+      <%= status_pill("live") %>
+    <% elsif @harvest_configured && @setting.harvest_checked? && !@setting.harvest_timestamp_mode %>
       <%= status_pill("connected") %>
     <% elsif @harvest_configured %>
       <%= status_pill("needs check") %>
@@ -30,14 +32,22 @@
     <% end %>
   </div>
 
-  <% if !@harvest_configured %>
-    <p>Not connected, so sending only shows what <em>would</em> be posted. To connect:</p>
-    <ol class="steps">
-      <li>Create a Personal Access Token at <a href="https://id.getharvest.com/developers" target="_blank" rel="noopener">id.getharvest.com/developers</a>.</li>
-      <li>Add <code>HARVEST_ACCESS_TOKEN</code> and <code>HARVEST_ACCOUNT_ID</code> to <code>.env</code>.</li>
-      <li>Restart the app (<code>bin/dev</code>), then come back here and click <strong>Test connection</strong>.</li>
+  <div class="checklist">
+    <p class="checklist-head"><strong>Going live</strong> <span class="muted"><%= @checklist.done_count %> of <%= @checklist.steps.size %> done</span></p>
+    <ol>
+      <% @checklist.steps.each do |step| %>
+        <li class="<%= step.done ? 'done' : 'todo' %>">
+          <span class="check"><%= step.done ? "✓" : "" %></span>
+          <span><strong><%= step.title %></strong> <span class="muted small">— <%= step.detail %></span></span>
+        </li>
+      <% end %>
     </ol>
-  <% else %>
+    <% unless @harvest_configured %>
+      <p class="hint">Create a Personal Access Token at <a href="https://id.getharvest.com/developers" target="_blank" rel="noopener">id.getharvest.com/developers</a>. The same page shows your account ID.</p>
+    <% end %>
+  </div>
+
+  <% if @harvest_configured %>
     <dl class="facts">
       <dt>Account</dt><dd><%= @setting.harvest_account_name || "—" %></dd>
       <dt>Signed in as</dt><dd><%= @setting.harvest_user_name.presence || "—" %><%= " (#{@setting.harvest_user_email})" if @setting.harvest_user_email.present? %></dd>
@@ -58,6 +68,32 @@
     <%= button_to "Test connection", check_harvest_connection_path, class: "btn", disabled: !@harvest_configured %>
     <%= button_to "Load projects from Harvest", load_projects_harvest_connection_path, class: "btn", disabled: !@harvest_configured %>
   </div>
+
+  <% if @harvest_configured %>
+    <div class="test-entry">
+      <h3>Test entry</h3>
+      <% if @testable_projects.any? %>
+        <%= form_with url: test_entry_harvest_connection_path, method: :post, class: "form-row" do %>
+          <label>Project
+            <%= select_tag :project_id, options_from_collection_for_select(@testable_projects, :id, :name), class: "input" %>
+          </label>
+          <button type="submit" class="btn btn-primary">Run test entry</button>
+        <% end %>
+        <p class="hint">Creates a 0.01-hour entry on the project's Development task, reads it back, then deletes it. Nothing is left in your timesheet.</p>
+      <% else %>
+        <p class="hint">Map a repo to one of your Harvest projects below to run a test entry.</p>
+      <% end %>
+      <% if @setting.harvest_test_log.present? %>
+        <ul class="test-log">
+          <% @setting.harvest_test_log.each do |step| %>
+            <li class="<%= step["ok"] ? "ok" : "bad" %>"><span class="check"><%= step["ok"] ? "✓" : "✗" %></span> <%= step["name"] %> <span class="muted small">— <%= step["detail"] %></span></li>
+          <% end %>
+        </ul>
+        <% if @setting.harvest_test_passed_at %><p class="hint">Last passed <%= time_ago_in_words(@setting.harvest_test_passed_at) %> ago.</p><% end %>
+      <% end %>
+    </div>
+  <% end %>
+
   <p class="hint">Sending to Harvest stays blocked until the connection is checked, the account tracks durations, and each project is one you've loaded from Harvest. That way demo data or a mistyped ID can't land on the wrong project.</p>
 </section>
 
@@ -155,3 +191,11 @@
   <p>Factories post events to <code>POST <%= request.base_url %>/api/v1/events</code> and attention heartbeats to <code>POST <%= request.base_url %>/api/v1/attention</code>. See the README for the payload format.</p>
   <p class="hint">API token: <%= ENV["LEDGER_API_TOKEN"].present? ? "set (send it as X-Ledger-Token)" : "not set, so local requests are accepted without one" %>. Harvest: <%= Harvest::Client.configured? ? "token set" : "not connected (dry run)" %>.</p>
 </section>
+
+<% if @demo_present %>
+  <section class="card">
+    <h2>Demo data</h2>
+    <p>The demo tickets, batches, and people are still here. Remove them before logging real time, so your Today page and drafts only show real work. Real tickets, projects, and Harvest settings are kept.</p>
+    <%= button_to "Remove demo data", demo_data_path, method: :delete, class: "btn btn-danger", form: { onsubmit: "return confirm('Remove all demo tickets, batches, people, and drafts? Real data is kept.')" } %>
+  </section>
+<% end %>

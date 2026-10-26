@@ -14,7 +14,7 @@
 
 <section class="card">
   <% if @work_items.empty? %>
-    <p class="empty">No tickets yet. They appear when a factory sends its first event.</p>
+    <p class="empty">No tickets yet. They appear when a factory sends its first event, or add one below.</p>
   <% else %>
     <table class="table">
       <thead><tr><th>Ticket</th><th>Project</th><th>Batch</th><th>Status</th><th class="num">Human (direct)</th><th class="num">Drafted</th><th class="num">Agent time</th><th class="num">Agent cost</th><th class="num">Rework</th></tr></thead>
@@ -35,4 +35,22 @@
       </tbody>
     </table>
   <% end %>
+</section>
+
+<section class="card">
+  <h2>Add a ticket</h2>
+  <p class="hint">For work that isn't coming from a factory yet. Once added, pick it in <strong>Track active time</strong> on the Today page.</p>
+  <%= form_with url: work_items_path, scope: :work_item, method: :post, class: "form-row" do |f| %>
+    <label>Jira key <%= f.text_field :jira_key, placeholder: "ACME-123", class: "input", required: true %></label>
+    <label>Summary <%= f.text_field :summary, placeholder: "What the ticket is", class: "input input-wide" %></label>
+    <label>Project
+      <% if @projects.any? %>
+        <%= f.select :repo, @projects.map { |p| [p.name, p.repo] }, {}, class: "input" %>
+      <% else %>
+        <%= f.text_field :repo, placeholder: "owner/repo", class: "input", required: true %>
+      <% end %>
+    </label>
+    <%= f.submit "Add ticket", class: "btn btn-primary" %>
+  <% end %>
+  <% if @projects.any? %><p class="hint">Need a different project? Add its repo in <%= link_to "Settings", settings_path %>.</p><% end %>
 </section>

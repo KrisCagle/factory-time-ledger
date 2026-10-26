@@ -2,7 +2,7 @@ module Harvest
   # Confirms the token works and records who it belongs to and how the account
   # tracks time. Also fills in the matching person's Harvest user ID.
   class CheckConnection
-    Outcome = Struct.new(:ok, :message, keyword_init: true)
+    Outcome = Struct.new(:ok, :message, :person, keyword_init: true)
 
     def self.call(client: Client.new, setting: LedgerSetting.current) = new(client, setting).call
 
@@ -26,12 +26,14 @@ module Harvest
         harvest_check_error: nil
       )
 
-      person = Person.find_by(email: me["email"].to_s.downcase)
-      person.update!(harvest_user_id: me["id"]) if person && person.harvest_user_id.blank?
+      # The token's owner is the person whose time this app logs; add them if
+      # they aren't here yet (for example, after removing demo data).
+      person = Person.for_email!(me["email"], name: name.presence)
+      person.update!(harvest_user_id: me["id"]) if person.harvest_user_id.blank?
 
       message = "Connected to #{company['name']} as #{name}."
       message += " This account tracks start and end times, which this app can't send yet." if @setting.harvest_timestamp_mode
-      Outcome.new(ok: !@setting.harvest_timestamp_mode, message:)
+      Outcome.new(ok: !@setting.harvest_timestamp_mode, message:, person:)
     rescue Client::Error => e
       @setting.update!(harvest_checked_at: Time.current, harvest_check_error: e.message)
       Outcome.new(ok: false, message: e.message)

@@ -37,6 +37,18 @@ class TimeDraftsController < ApplicationController
     end
   end
 
+  def verify
+    draft = current_person.time_drafts.find(params[:id])
+    outcome = Harvest::VerifyEntry.call(draft)
+    redirect_to time_drafts_path(date: draft.spent_on), (outcome.ok ? :notice : :alert) => outcome.message
+  end
+
+  def undo
+    draft = current_person.time_drafts.find(params[:id])
+    outcome = Harvest::UndoDraft.call(draft)
+    redirect_to time_drafts_path(date: draft.spent_on), (outcome.ok ? :notice : :alert) => outcome.message
+  end
+
   private
 
     def drafts_for_day

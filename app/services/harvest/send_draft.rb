@@ -30,7 +30,7 @@ module Harvest
       return refuse("#{project.name} has no Harvest task for #{Activity.label(@draft.activity)}. Pick one in Settings.") if task_id.blank?
 
       unless @client.dry_run?
-        problem = live_guard(project, task_id)
+        problem = Guard.problem(project:, task_id:, setting: @setting)
         return refuse("#{key}: #{problem}") if problem
       end
 
@@ -50,7 +50,9 @@ module Harvest
         Outcome.new(ok: true, dry_run: true, message: "Dry run: #{key} would log #{@draft.hours}h")
       elsif response.ok
         @draft.update!(status: "sent", harvest_time_entry_id: response.entry_id, sent_at: Time.current, last_payload: payload, last_error: nil)
-        Outcome.new(ok: true, dry_run: false, message: "Sent #{key} (#{@draft.hours}h)")
+        verified = VerifyEntry.call(@draft, client: @client)
+        message = verified.ok ? "Sent and verified #{key} (#{@draft.hours}h)" : "Sent #{key} (#{@draft.hours}h), but #{verified.message}"
+        Outcome.new(ok: true, dry_run: false, message:)
       else
         @draft.update!(status: "failed", last_payload: payload, last_error: response.error)
         Outcome.new(ok: false, dry_run: false, message: "#{key}: #{response.error}")
@@ -58,18 +60,6 @@ module Harvest
     end
 
     private
-
-      def live_guard(project, task_id)
-        return "run Test connection in Settings first." unless @setting.harvest_checked?
-        return "this Harvest account tracks start and end times, which this app can't send yet." if @setting.harvest_timestamp_mode
-        return "load your projects from Harvest in Settings first." unless @setting.harvest_projects_loaded?
-
-        harvest_project = HarvestProject.find_by(harvest_id: project.harvest_project_id)
-        return "Harvest project ##{project.harvest_project_id} isn't one of your Harvest projects. Re-pick it in Settings." unless harvest_project
-        return "task ##{task_id} isn't assigned to #{harvest_project.name} in Harvest. Re-pick it in Settings." unless harvest_project.has_task?(task_id)
-
-        nil
-      end
 
       def refuse(message)
         @draft.update!(last_error: message)

@@ -6,6 +6,9 @@ class SettingsController < ApplicationController
     @new_person = Person.new
     @harvest_configured = Harvest::Client.configured?
     @harvest_projects = HarvestProject.active.ordered.to_a
+    @checklist = GoLiveChecklist.new(setting: @setting)
+    @testable_projects = @checklist.real_mapped_projects
+    @demo_present = DemoData.present?
   end
 
   def update

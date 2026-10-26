@@ -2,6 +2,7 @@
 # names are accepted (factories evolve) and just get a generic label.
 class PipelineEvent < ApplicationRecord
   KNOWN_TYPES = {
+    "ticket_added" => "Added by hand",
     "pipeline_started" => "Pipeline started",
     "stage_claimed" => "Agent stage claimed",
     "stage_completed" => "Agent stage completed",

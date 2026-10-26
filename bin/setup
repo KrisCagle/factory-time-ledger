@@ -1,9 +1,15 @@
 #!/usr/bin/env ruby
-# Installs gems, starts the app's Postgres (Docker), prepares the database,
-# and loads demo data. Safe to re-run: it resets the development database.
+# Installs gems, starts the app's Postgres (Docker), and prepares the database.
+#
+#   bin/setup          Safe to re-run. Creates and migrates the database, and
+#                      loads demo data only when the database is brand new.
+#                      Never deletes existing data.
+#   bin/setup --reset  Deletes everything and reloads demo data. Don't use this
+#                      once you're logging real time.
 require "fileutils"
 
 APP_ROOT = File.expand_path("..", __dir__)
+RESET = ARGV.include?("--reset")
 
 def system!(*args)
   system(*args, exception: true)
@@ -38,8 +44,15 @@ FileUtils.chdir APP_ROOT do
     system! "docker compose up -d --wait db"
   end
 
-  puts "\n== Preparing database (with demo data) =="
-  system! "bin/rails db:drop db:create db:migrate db:seed"
+  if RESET
+    puts "\n== Resetting the database and loading demo data (--reset) =="
+    system! "bin/rails db:drop db:create db:migrate db:seed"
+  else
+    # db:prepare creates + migrates + seeds a new database, and only migrates
+    # an existing one, so real data is never touched.
+    puts "\n== Preparing database =="
+    system! "bin/rails db:prepare"
+  end
 
   puts "\n== Done. Start the app with: bin/dev =="
   puts "   Then open http://localhost:3001"

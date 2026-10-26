@@ -8,7 +8,16 @@ module Harvest
   class Client
     API_BASE = "https://api.harvestapp.com/v2".freeze
 
-    class Error < StandardError; end
+    class Error < StandardError
+      attr_reader :status
+
+      def initialize(message, status: nil)
+        super(message)
+        @status = status
+      end
+
+      def not_found? = status == 404
+    end
 
     Response = Struct.new(:ok, :dry_run, :entry_id, :error, :payload, keyword_init: true)
 
@@ -40,7 +49,17 @@ module Harvest
       results
     end
 
+    def time_entry(id) = get("/time_entries/#{Integer(id)}")
+
     # --- Writes --------------------------------------------------------------
+
+    # Raises Client::Error (not_found? is true when it's already gone).
+    def delete_time_entry(id)
+      raise Error, "Harvest isn't connected." if dry_run?
+
+      request(Net::HTTP::Delete, "/time_entries/#{Integer(id)}")
+      true
+    end
 
     # Harvest accounts tracking time as durations accept `hours`. Accounts set
     # to start/end timestamps need started_time/ended_time instead; SendDraft
@@ -71,9 +90,9 @@ module Harvest
         return body if response.is_a?(Net::HTTPSuccess)
 
         message = body["message"] || body["error_description"] || body["error"] || response.message
-        raise Error, "Harvest #{response.code}: #{message}"
+        raise Error.new("Harvest #{response.code}: #{message}", status: response.code.to_i)
       rescue JSON::ParserError
-        raise Error, "Harvest #{response&.code}: unexpected response"
+        raise Error.new("Harvest #{response&.code}: unexpected response", status: response&.code.to_i)
       rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNREFUSED => e
         raise Error, "Couldn't reach Harvest (#{e.class.name.demodulize})"
       end

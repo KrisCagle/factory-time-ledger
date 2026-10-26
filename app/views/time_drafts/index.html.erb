@@ -50,8 +50,20 @@
             <% if draft.status == "sent" %>
               <td><%= draft.hours %></td>
               <td class="small"><%= draft.notes %></td>
-              <td><%= status_pill(draft.status) %><div class="muted small">entry #<%= draft.harvest_time_entry_id %></div></td>
-              <td></td>
+              <td>
+                <%= status_pill(draft.status) %>
+                <div class="muted small">entry #<%= draft.harvest_time_entry_id %></div>
+                <% if draft.harvest_verified_at %>
+                  <div class="small verified">✓ verified in Harvest</div>
+                <% elsif draft.harvest_verify_note.present? %>
+                  <div class="small warn"><%= draft.harvest_verify_note %></div>
+                <% end %>
+              </td>
+              <td>
+                <%= button_to "Verify", verify_time_draft_path(draft), class: "btn btn-small" %>
+                <%= button_to "Undo", undo_time_draft_path(draft), class: "btn btn-small btn-ghost",
+                      form: { onsubmit: "return confirm('Delete this entry from Harvest and put the draft back to approved?')" } %>
+              </td>
             <% else %>
               <% fid = "draft_form_#{draft.id}" %>
               <td><%= number_field_tag "time_draft[hours]", draft.hours, step: 0.01, min: 0, class: "input input-hours", form: fid %></td>

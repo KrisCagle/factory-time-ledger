@@ -3,8 +3,12 @@ Rails.application.routes.draw do
 
   get "today", to: "today#show", as: :today
   resources :batches, only: %i[index show]
-  resources :work_items, only: %i[index show], path: "tickets"
+  resources :work_items, only: %i[index show create], path: "tickets"
   resources :time_drafts, only: %i[index update], path: "harvest" do
+    member do
+      post :verify
+      post :undo
+    end
     collection do
       post :generate
       post :approve_all
@@ -16,8 +20,10 @@ Rails.application.routes.draw do
   resource :harvest_connection, only: [] do
     post :check
     post :load_projects
+    post :test_entry
   end
   resources :people, only: %i[create]
+  resource :demo_data, only: :destroy, controller: "demo_data"
   post "attention/heartbeat", to: "attention#heartbeat", as: :attention_heartbeat
 
   namespace :api do
