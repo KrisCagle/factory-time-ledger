@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_20_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_26_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -83,6 +83,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_000002) do
     t.datetime "harvest_checked_at"
     t.text "harvest_check_error"
     t.datetime "harvest_projects_synced_at"
+    t.datetime "harvest_test_passed_at"
+    t.jsonb "harvest_test_log", default: [], null: false
   end
 
   create_table "people", force: :cascade do |t|
@@ -138,6 +140,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_20_000002) do
     t.jsonb "last_payload"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "harvest_verified_at"
+    t.text "harvest_verify_note"
     t.index ["person_id", "work_item_id", "spent_on", "activity"], name: "index_time_drafts_uniqueness", unique: true
     t.index ["person_id"], name: "index_time_drafts_on_person_id"
     t.index ["work_item_id"], name: "index_time_drafts_on_work_item_id"

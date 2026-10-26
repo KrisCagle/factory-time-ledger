@@ -34,8 +34,8 @@ jobs:
         with:
           ruby-version: "3.4"
           bundler-cache: true
-      - name: Prepare database
-        run: bin/rails db:create db:schema:load
+      - name: Prepare database (runs every migration from scratch)
+        run: bin/rails db:create db:migrate
       - name: Attribution engine (no database)
         run: ruby -Ilib test/lib/attribution_engine_test.rb
       - name: Full test suite
@@ -49,6 +49,10 @@ jobs:
           # checked without downloading logs.
           summary=$(grep -E "[0-9]+ runs, [0-9]+ assertions" test-output.txt | tail -1)
           echo "::notice title=Test results::${summary:-no summary found}"
+          if [ -z "$summary" ]; then
+            # The suite didn't finish; show how it ended.
+            tail -40 test-output.txt | tr '\n' ' ' | cut -c1-3500 | sed 's/^/::error title=Suite output::/'
+          fi
           grep -E "(Failure|Error):$" -A 6 test-output.txt | head -80 | tr '\n' ' ' | sed 's/--/\n/g' | while IFS= read -r line; do
             [ -n "$line" ] && echo "::error title=Test failure::$line"
           done
