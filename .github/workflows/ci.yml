@@ -39,4 +39,19 @@ jobs:
       - name: Attribution engine (no database)
         run: ruby -Ilib test/lib/attribution_engine_test.rb
       - name: Full test suite
-        run: bin/rails test
+        run: |
+          set -o pipefail
+          bin/rails test 2>&1 | tee test-output.txt
+      - name: Report results as annotations
+        if: always()
+        run: |
+          # Annotations are readable through the GitHub API, so results can be
+          # checked without downloading logs.
+          summary=$(grep -E "[0-9]+ runs, [0-9]+ assertions" test-output.txt | tail -1)
+          echo "::notice title=Test results::${summary:-no summary found}"
+          grep -E "(Failure|Error):$" -A 6 test-output.txt | head -80 | tr '\n' ' ' | sed 's/--/\n/g' | while IFS= read -r line; do
+            [ -n "$line" ] && echo "::error title=Test failure::$line"
+          done
+          grep -iE "deprecat|warning:" test-output.txt | sort -u | head -10 | while IFS= read -r line; do
+            echo "::warning title=Warning::$line"
+          done
