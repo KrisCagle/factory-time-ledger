@@ -53,7 +53,9 @@ jobs:
             # The suite didn't finish; show how it ended.
             tail -40 test-output.txt | tr '\n' ' ' | cut -c1-3500 | sed 's/^/::error title=Suite output::/'
           fi
-          grep -E "(Failure|Error):$" -A 6 test-output.txt | head -80 | tr '\n' ' ' | sed 's/--/\n/g' | while IFS= read -r line; do
+          # "::" inside a message would end the annotation early, so soften it.
+          awk '/^(Failure|Error):$/{grab=8} grab>0{printf "%s ", $0; grab--; if(grab==0) print ""}' test-output.txt \
+            | sed 's/::/ : /g' | head -10 | while IFS= read -r line; do
             [ -n "$line" ] && echo "::error title=Test failure::$line"
           done
           grep -iE "deprecat|warning:" test-output.txt | sort -u | head -10 | while IFS= read -r line; do
