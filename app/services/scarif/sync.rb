@@ -203,8 +203,10 @@ module Scarif
       # Keeps the ledger's agent cost equal to Scarif's total for the item: any
       # cost Scarif reports that isn't on an itemised run goes on one adjustment row.
       def reconcile_cost(id, work_item, run_ids, total)
-        adjustment = work_item.agent_runs.find_or_initialize_by(source: SOURCE, external_id: "wi-#{id}-unitemized")
-        itemised = work_item.agent_runs.where(source: SOURCE, external_id: run_ids).sum(:cost_usd).to_d
+        # Not built through work_item.agent_runs: an unsaved record in that
+        # association would be autosaved by the work item's next save.
+        adjustment = AgentRun.find_or_initialize_by(work_item:, source: SOURCE, external_id: "wi-#{id}-unitemized")
+        itemised = AgentRun.where(work_item:, source: SOURCE, external_id: run_ids).sum(:cost_usd).to_d
         diff = total.to_d - itemised
         if total.present? && diff.abs > BigDecimal("0.005")
           adjustment.update!(stage_type: "cost not itemized by Scarif", cost_usd: diff.round(6))
