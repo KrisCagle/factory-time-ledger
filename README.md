@@ -67,6 +67,36 @@ So demo data (which uses made-up Harvest IDs) and mistyped IDs are refused with 
 
 Entries post as the token's owner. To post for a teammate, the token needs Harvest admin or manager rights and the person needs a Harvest user ID in Settings.
 
+## Connecting Scarif (read-only)
+
+The ledger can read your work from [Scarif](https://github.com/twinsunllc/scarif-web) without any change to Scarif. It only sends `GET` requests, and everything it reads needs just the **`work_item:read`** scope.
+
+1. In Scarif, open **Settings → API tokens** and create a token with only `work_item:read`.
+2. Add it to `.env` and restart `bin/dev`:
+   ```
+   SCARIF_API_TOKEN=...
+   ```
+   (`SCARIF_URL` defaults to `https://scarif.twinsun.dev`.)
+3. In **Settings → Scarif connection**, click **Test connection**, then **Sync now**.
+
+After that it syncs in the background every 5 minutes while the app runs (`SCARIF_SYNC_MINUTES` to change, `SCARIF_POLL=false` to turn off). `bin/rails scarif:sync` runs one sync from a terminal.
+
+What it reads, and what it becomes here:
+
+| Scarif `/api/v2` | In the ledger |
+|---|---|
+| `GET /me` | Who the token belongs to, and its scopes |
+| `GET /work_items` (newest first, cursor paging) | Tickets: Jira key, summary, repo, agent points, status |
+| `GET /work_items/:id/node_runs` | Agent runs with timing and cost (factory items) |
+| `GET /work_items/:id` → `stages` | Agent runs with timing (older, non-factory items) |
+| `GET /factory_asks?state=all&jira_key=` | Waiting on you / answered, review approvals (`approve`), rework (`revise`, `reject`) |
+| Same person, enqueued within 10 minutes | An inferred batch |
+
+- By default it only reads work items **you** enqueued (Settings: *Only work items I enqueued*). The first sync looks back 14 days; later syncs re-read only items that changed.
+- Agent cost always matches Scarif's `total_cost_usd`. Any cost Scarif doesn't itemize per run goes on one "cost not itemized by Scarif" row.
+- Scarif doesn't record active human time, so that still comes from heartbeats (the tracker, or a factory's UI).
+- Repos from Scarif show up under **Settings → Projects → Harvest**; map them to a Harvest project before their time can be sent.
+
 ## Sending events from a factory
 
 `POST /api/v1/events` with JSON. Send `{"events": [ ... ]}` to post several at once. Re-sending an event with the same `source` + `event_id` is ignored, so retries are safe.
@@ -149,5 +179,5 @@ GitHub Actions runs every migration from scratch and the full suite on each push
 
 - **ai-dev-factory**: post events and attention heartbeats from the factory UI's inbox and review walkthrough.
 - **Local Claude Code**: hooks that post events for sessions tied to a Jira key.
-- **Scarif**: a read-only adapter for Scarif's work items and pipeline events (no changes to Scarif needed), then optionally Scarif posting events directly and sending attention pings from its ask and review pages.
+- **Scarif**: read-only adapter done (see *Connecting Scarif*). Next, optionally, Scarif sending attention pings from its ask and review pages, so time answering asks is tracked automatically.
 - Harvest timestamp-mode accounts, per-person views for a team lead, and weekly rollups.
