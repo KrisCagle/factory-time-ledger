@@ -3,6 +3,7 @@ class LedgerSetting < ApplicationRecord
   validates :split_rule, inclusion: { in: Attribution::Engine::RULES.map(&:to_s) }
   validates :idle_gap_minutes, numericality: { only_integer: true, in: 1..60 }
   validates :rounding_minutes, numericality: { only_integer: true, in: 0..60 }
+  validates :scarif_lookback_days, numericality: { only_integer: true, in: 1..90 }
 
   def self.current = first_or_create!
 
@@ -12,4 +13,6 @@ class LedgerSetting < ApplicationRecord
 
   # Projects from Harvest are only trusted for safety checks once loaded.
   def harvest_projects_loaded? = harvest_projects_synced_at.present?
+
+  def scarif_checked? = scarif_checked_at.present? && scarif_check_error.blank?
 end

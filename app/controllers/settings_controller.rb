@@ -9,6 +9,8 @@ class SettingsController < ApplicationController
     @checklist = GoLiveChecklist.new(setting: @setting)
     @testable_projects = @checklist.real_mapped_projects
     @demo_present = DemoData.present?
+    @scarif_configured = Scarif::Client.configured?
+    @scarif_ticket_count = ExternalRecord.where(source: Scarif::Sync::SOURCE).distinct.count(:work_item_id)
   end
 
   def update

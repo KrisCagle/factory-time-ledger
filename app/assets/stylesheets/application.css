@@ -188,3 +188,5 @@ h3 { font-size: 14px; margin: 16px 0 8px; }
 .verified { color: var(--accent); }
 .inline-form { display: inline; }
 .input-wide { min-width: 260px; }
+.pill-not-connected { color: var(--muted); }
+.inline-check { flex-direction: row !important; align-items: center; gap: 6px !important; color: var(--ink) !important; }

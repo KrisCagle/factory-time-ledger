@@ -97,6 +97,60 @@
   <p class="hint">Sending to Harvest stays blocked until the connection is checked, the account tracks durations, and each project is one you've loaded from Harvest. That way demo data or a mistyped ID can't land on the wrong project.</p>
 </section>
 
+<section class="card" id="scarif">
+  <div class="card-head">
+    <h2>Scarif connection</h2>
+    <% if @scarif_configured && @setting.scarif_checked? %>
+      <%= status_pill("connected") %>
+    <% elsif @scarif_configured %>
+      <%= status_pill("needs check") %>
+    <% else %>
+      <%= status_pill("not connected") %>
+    <% end %>
+  </div>
+  <p class="hint">Reads your Scarif work items (read-only) so their agent time, agent cost, asks, and batches show up here next to everything else. Needs a Scarif personal API token with just the <code>work_item:read</code> scope.</p>
+
+  <% if !@scarif_configured %>
+    <ol class="steps">
+      <li>In Scarif, open <strong>Settings → API tokens</strong> and create a token with only <code>work_item:read</code>.</li>
+      <li>Add it to <code>.env</code> as <code>SCARIF_API_TOKEN=...</code>, then restart <code>bin/dev</code>.</li>
+      <li>Come back here and click <strong>Test connection</strong>.</li>
+    </ol>
+  <% else %>
+    <dl class="facts">
+      <dt>Scarif</dt><dd><%= Scarif::Client.base_url %></dd>
+      <dt>Signed in as</dt><dd><%= @setting.scarif_user_name.presence || "—" %><%= " (#{@setting.scarif_user_email})" if @setting.scarif_user_email.present? %></dd>
+      <dt>Token scopes</dt>
+      <dd>
+        <%= @setting.scarif_token_scopes.presence&.join(", ") || "—" %>
+        <% extra = @setting.scarif_token_scopes & Scarif::CheckConnection::WRITE_SCOPES %>
+        <% if extra.any? %><div class="small warn">This token can also change things in Scarif. The ledger only reads, but a token with just work_item:read is safer.</div><% end %>
+      </dd>
+      <dt>Last sync</dt>
+      <dd>
+        <% if @setting.scarif_last_synced_at %><%= time_ago_in_words(@setting.scarif_last_synced_at) %> ago<% else %>never<% end %>
+        <% if @setting.scarif_last_sync_summary.present? %><div class="muted small"><%= @setting.scarif_last_sync_summary %></div><% end %>
+      </dd>
+      <dt>Tickets from Scarif</dt><dd><%= @scarif_ticket_count %></dd>
+      <dt>Background sync</dt>
+      <dd><%= Scarif::Poller.running? ? "every #{(Scarif::Poller.interval / 60).round} minutes while the app runs" : "off (use Sync now)" %></dd>
+    </dl>
+    <% if @setting.scarif_check_error.present? %><p class="small warn"><%= @setting.scarif_check_error %></p><% end %>
+    <% if @setting.scarif_sync_error.present? %><p class="small warn">Last sync failed: <%= @setting.scarif_sync_error %></p><% end %>
+
+    <%= form_with model: @setting, url: scarif_connection_path, method: :patch, class: "form-row" do |f| %>
+      <label class="inline-check"><%= f.check_box :scarif_only_mine %> Only work items I enqueued</label>
+      <label>Look back (days) <%= f.number_field :scarif_lookback_days, min: 1, max: 90, class: "input input-small" %></label>
+      <%= f.submit "Save", class: "btn btn-small" %>
+    <% end %>
+  <% end %>
+
+  <div class="actions">
+    <%= button_to "Test connection", check_scarif_connection_path, class: "btn", disabled: !@scarif_configured %>
+    <%= button_to "Sync now", sync_scarif_connection_path, class: "btn btn-primary", disabled: !@scarif_configured %>
+  </div>
+</section>
+
 <section class="card">
   <h2>Projects → Harvest</h2>
   <% pickers = @harvest_projects.any? %>
@@ -189,7 +243,7 @@
 <section class="card">
   <h2>Connecting factories</h2>
   <p>Factories post events to <code>POST <%= request.base_url %>/api/v1/events</code> and attention heartbeats to <code>POST <%= request.base_url %>/api/v1/attention</code>. See the README for the payload format.</p>
-  <p class="hint">API token: <%= ENV["LEDGER_API_TOKEN"].present? ? "set (send it as X-Ledger-Token)" : "not set, so local requests are accepted without one" %>. Harvest: <%= Harvest::Client.configured? ? "token set" : "not connected (dry run)" %>.</p>
+  <p class="hint">API token: <%= ENV["LEDGER_API_TOKEN"].present? ? "set (send it as X-Ledger-Token)" : "not set, so local requests are accepted without one" %>. Harvest: <%= Harvest::Client.configured? ? "token set" : "not connected (dry run)" %>. Scarif: <%= Scarif::Client.configured? ? "token set" : "not connected" %>.</p>
 </section>
 
 <% if @demo_present %>

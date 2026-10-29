@@ -22,6 +22,10 @@ Rails.application.routes.draw do
     post :load_projects
     post :test_entry
   end
+  resource :scarif_connection, only: :update do
+    post :check
+    post :sync
+  end
   resources :people, only: %i[create]
   resource :demo_data, only: :destroy, controller: "demo_data"
   post "attention/heartbeat", to: "attention#heartbeat", as: :attention_heartbeat

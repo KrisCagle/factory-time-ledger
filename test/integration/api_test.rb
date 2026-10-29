@@ -87,4 +87,39 @@ class ApiTest < ActionDispatch::IntegrationTest
     assert_response :redirect
     assert_equal "sent", draft.reload.status, "nothing changes without a Harvest connection"
   end
+
+  test "settings shows Scarif setup steps when no token is set" do
+    get "/settings"
+    assert_response :success
+    assert_match "Scarif connection", response.body
+    assert_match "work_item:read", response.body
+  end
+
+  test "Scarif buttons explain a missing token" do
+    post "/scarif_connection/sync"
+    assert_redirected_to settings_path(anchor: "scarif")
+    assert_match "SCARIF_API_TOKEN", flash[:alert]
+  end
+
+  test "Scarif settings save" do
+    patch "/scarif_connection", params: { ledger_setting: { scarif_only_mine: "0", scarif_lookback_days: "30" } }
+    assert_redirected_to settings_path(anchor: "scarif")
+    setting = LedgerSetting.current
+    assert_equal false, setting.scarif_only_mine
+    assert_equal 30, setting.scarif_lookback_days
+  end
+
+  test "settings renders with a Scarif token configured" do
+    ENV["SCARIF_API_TOKEN"] = "test-token"
+    LedgerSetting.current.update!(scarif_user_name: "Kris Cagle", scarif_token_scopes: ["work_item:read", "work_item:write"],
+                                  scarif_checked_at: Time.current, scarif_last_synced_at: Time.current,
+                                  scarif_last_sync_summary: "Read 2 recently changed Scarif items")
+    get "/settings"
+    assert_response :success
+    assert_match "Kris Cagle", response.body
+    assert_match "can also change things in Scarif", response.body
+  ensure
+    ENV.delete("SCARIF_API_TOKEN")
+  end
 end
+

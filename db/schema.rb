@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_26_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_29_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -57,6 +57,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_000001) do
     t.index ["started_by_id"], name: "index_batches_on_started_by_id"
   end
 
+  create_table "external_records", force: :cascade do |t|
+    t.string "source", null: false
+    t.string "external_id", null: false
+    t.bigint "work_item_id"
+    t.string "jira_key"
+    t.string "enqueued_by_id"
+    t.datetime "external_created_at"
+    t.datetime "external_updated_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["source", "external_id"], name: "index_external_records_on_source_and_external_id", unique: true
+    t.index ["work_item_id"], name: "index_external_records_on_work_item_id"
+  end
+
   create_table "harvest_projects", force: :cascade do |t|
     t.bigint "harvest_id", null: false
     t.string "name", null: false
@@ -85,6 +99,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_000001) do
     t.datetime "harvest_projects_synced_at"
     t.datetime "harvest_test_passed_at"
     t.jsonb "harvest_test_log", default: [], null: false
+    t.string "scarif_user_id"
+    t.string "scarif_user_name"
+    t.string "scarif_user_email"
+    t.jsonb "scarif_token_scopes", default: [], null: false
+    t.datetime "scarif_checked_at"
+    t.text "scarif_check_error"
+    t.datetime "scarif_last_synced_at"
+    t.text "scarif_last_sync_summary"
+    t.text "scarif_sync_error"
+    t.boolean "scarif_only_mine", default: true, null: false
+    t.integer "scarif_lookback_days", default: 14, null: false
   end
 
   create_table "people", force: :cascade do |t|
@@ -169,6 +194,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_26_000001) do
   add_foreign_key "attention_spans", "people"
   add_foreign_key "attention_spans", "work_items"
   add_foreign_key "batches", "people", column: "started_by_id"
+  add_foreign_key "external_records", "work_items"
   add_foreign_key "pipeline_events", "people"
   add_foreign_key "pipeline_events", "work_items"
   add_foreign_key "time_drafts", "people"
