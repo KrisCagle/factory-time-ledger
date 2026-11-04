@@ -93,8 +93,10 @@ class FakeScarifClient
     @node_runs_by_id.fetch(id, [])
   end
 
-  def factory_asks(jira_key:)
-    @calls << [:factory_asks, jira_key]
-    @asks.select { |a| a["jira_key"] == jira_key }
+  def factory_asks(jira_key: nil, state: "all")
+    @calls << [:factory_asks, jira_key, state]
+    asks = jira_key ? @asks.select { |a| a["jira_key"] == jira_key } : @asks
+    asks = asks.select { |a| a["state"] == state } unless state == "all"
+    jira_key ? asks : asks.sort_by { |a| a["answered_at"].to_s }.reverse.first(100)
   end
 end

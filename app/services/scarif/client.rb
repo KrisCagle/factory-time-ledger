@@ -41,8 +41,11 @@ module Scarif
     # Factory node runs, each with started_at, completed_at and cost_usd.
     def node_runs(id) = Array(get("/api/v2/work_items/#{escape(id)}/node_runs").first["node_runs"])
 
-    # Every ask (open, answered, withdrawn) on work items with this Jira key.
-    def factory_asks(jira_key:) = Array(get("/api/v2/factory_asks", { state: "all", jira_key: }).first["asks"])
+    # Factory asks. With a Jira key: every ask (open, answered, withdrawn) on
+    # work items with that key. Without one: up to 100, newest first.
+    def factory_asks(jira_key: nil, state: "all")
+      Array(get("/api/v2/factory_asks", { state:, jira_key: }.compact).first["asks"])
+    end
 
     private
 

@@ -108,7 +108,7 @@
       <%= status_pill("not connected") %>
     <% end %>
   </div>
-  <p class="hint">Reads your Scarif work items (read-only) so their agent time, agent cost, asks, and batches show up here next to everything else. Needs a Scarif personal API token with just the <code>work_item:read</code> scope.</p>
+  <p class="hint">Reads the Scarif work items you enqueued or answered an ask on (read-only), so their agent time, agent cost, asks, and batches show up here next to everything else. Needs a Scarif personal API token with just the <code>work_item:read</code> scope.</p>
 
   <% if !@scarif_configured %>
     <ol class="steps">
@@ -133,13 +133,16 @@
       </dd>
       <dt>Tickets from Scarif</dt><dd><%= @scarif_ticket_count %></dd>
       <dt>Background sync</dt>
-      <dd><%= Scarif::Poller.running? ? "every #{(Scarif::Poller.interval / 60).round} minutes while the app runs" : "off (use Sync now)" %></dd>
+      <dd>
+        <%= Scarif::Poller.running? ? "every #{(Scarif::Poller.interval / 60).round} minutes while the app runs" : "off (use Sync now)" %>
+        <% if Scarif::Poller.syncing? %><div class="small warn">A sync is running now. Refresh to see progress.</div><% end %>
+      </dd>
     </dl>
     <% if @setting.scarif_check_error.present? %><p class="small warn"><%= @setting.scarif_check_error %></p><% end %>
     <% if @setting.scarif_sync_error.present? %><p class="small warn">Last sync failed: <%= @setting.scarif_sync_error %></p><% end %>
 
     <%= form_with model: @setting, url: scarif_connection_path, method: :patch, class: "form-row" do |f| %>
-      <label class="inline-check"><%= f.check_box :scarif_only_mine %> Only work items I enqueued</label>
+      <label class="inline-check"><%= f.check_box :scarif_only_mine %> Only my work (items I enqueued or answered an ask on)</label>
       <label>Look back (days) <%= f.number_field :scarif_lookback_days, min: 1, max: 90, class: "input input-small" %></label>
       <%= f.submit "Save", class: "btn btn-small" %>
     <% end %>

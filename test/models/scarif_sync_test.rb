@@ -142,7 +142,7 @@ class ScarifSyncTest < ActiveSupport::TestCase
 
     outcome = sync(now: @now + 5.minutes)
     assert_equal 0, outcome.counts[:updated].to_i
-    assert_equal 1, outcome.counts[:unchanged]
+    assert_equal 2, outcome.counts[:unchanged]
     assert_equal events, PipelineEvent.count
     assert_equal runs, AgentRun.count
     assert_empty @client.calls.select { |c| c.first == :work_item }, "unchanged items aren't re-read"
@@ -208,4 +208,63 @@ class ScarifSyncTest < ActiveSupport::TestCase
     sync(now: @now + 5.minutes)
     assert WorkItem.find_by(jira_key: "MINE-1")
   end
+
+  # --- "Your work" = enqueued by you OR you answered an ask on it ---------------
+
+  def other_item_with_ask(id:, key:, answered_by:)
+    @client.add_item(id:, jira_key: key, created_at: T, updated_at: T + 1.hour, orderer: FakeScarifClient::OTHER_ID, status: "done", total_cost: 2.0)
+    @client.add_node_run(id, id: "#{id}-n", node_id: "implement", started_at: T + 1.minute, completed_at: T + 31.minutes, cost: 2.0)
+    @client.add_ask(id, id: "#{id}-q", jira_key: key, kind: "merge_ready", opened_at: T + 40.minutes,
+                        answered_at: T + 50.minutes, resolution: "approve", answered_by:)
+  end
+
+  test "work someone else enqueued counts as yours when you answered an ask on it" do
+    other_item_with_ask(id: "j1", key: "JAMI-1", answered_by: "kris@example.com")
+    other_item_with_ask(id: "j2", key: "JAMI-2", answered_by: "eric@example.com")
+    outcome = sync
+
+    assert WorkItem.find_by(jira_key: "JAMI-1"), "you approved it, so it's yours"
+    assert_nil WorkItem.find_by(jira_key: "JAMI-2"), "someone else approved it"
+    assert_match "1 is yours", outcome.message
+    assert_equal BigDecimal("2.0"), WorkItem.find_by!(jira_key: "JAMI-1").agent_cost_usd
+  end
+
+  test "answered-by matching ignores email case" do
+    other_item_with_ask(id: "j1", key: "JAMI-1", answered_by: "Kris@Example.com")
+    sync
+    assert WorkItem.find_by(jira_key: "JAMI-1")
+  end
+
+  test "items that aren't yours are remembered and not re-checked while unchanged" do
+    other_item_with_ask(id: "j2", key: "JAMI-2", answered_by: "eric@example.com")
+    sync
+    @client.calls.clear
+    outcome = sync(now: @now + 5.minutes)
+    assert_equal 1, outcome.counts[:not_mine]
+    assert_empty @client.calls.select { |c| c.first == :factory_asks && c[1] }, "no per-ticket ask lookups for unchanged items"
+  end
+
+  test "an item you answer later is picked up even if the item itself didn't change" do
+    other_item_with_ask(id: "j3", key: "JAMI-3", answered_by: "eric@example.com")
+    sync
+    assert_nil WorkItem.find_by(jira_key: "JAMI-3")
+
+    @client.add_ask("j3", id: "j3-q2", jira_key: "JAMI-3", kind: "decision", opened_at: T + 2.hours,
+                          answered_at: T + 3.hours, resolution: "reply", answered_by: "kris@example.com")
+    sync(now: @now + 5.minutes)
+    assert WorkItem.find_by(jira_key: "JAMI-3")
+  end
+
+  test "items you answered from one bulk enqueue form a batch" do
+    other_item_with_ask(id: "j1", key: "JAMI-1", answered_by: "kris@example.com")
+    @client.add_item(id: "j4", jira_key: "JAMI-4", created_at: T + 2.minutes, updated_at: T + 2.hours, orderer: FakeScarifClient::OTHER_ID)
+    @client.add_ask("j4", id: "j4-q", jira_key: "JAMI-4", kind: "merge_ready", opened_at: T + 1.hour,
+                          answered_at: T + 90.minutes, resolution: "revise", answered_by: "kris@example.com")
+    sync
+    batch = WorkItem.find_by!(jira_key: "JAMI-1").batch
+    assert batch
+    assert_equal batch, WorkItem.find_by!(jira_key: "JAMI-4").batch
+    assert_equal 1, WorkItem.find_by!(jira_key: "JAMI-4").rework_count
+  end
 end
+

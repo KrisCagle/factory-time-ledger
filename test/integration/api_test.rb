@@ -102,7 +102,9 @@ class ApiTest < ActionDispatch::IntegrationTest
   end
 
   test "Scarif settings save" do
+    ExternalRecord.create!(source: "scarif", external_id: "skipped-1")
     patch "/scarif_connection", params: { ledger_setting: { scarif_only_mine: "0", scarif_lookback_days: "30" } }
+    assert_equal 0, ExternalRecord.count, "skipped items are re-decided after a settings change"
     assert_redirected_to settings_path(anchor: "scarif")
     setting = LedgerSetting.current
     assert_equal false, setting.scarif_only_mine

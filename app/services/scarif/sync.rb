@@ -8,12 +8,15 @@ module Scarif
   #                        approvals and rework (approve / revise, reject)
   #   enqueued together  → a batch (same person, each within BATCH_GAP of the last)
   #
-  # Event IDs are derived from Scarif's IDs, so re-reading an item never
-  # duplicates anything. Only items updated since the last sync are re-read.
+  # "Your" work (the default) is anything you enqueued or answered an ask on:
+  # most Scarif work is enqueued in bulk by someone else and reviewed by you.
+  #
+  # Every item in the lookback window is listed each sync (cheap: one request
+  # per 100 items), but an item is only looked at closely when it changed since
+  # it was last seen. Event IDs come from Scarif's IDs, so nothing duplicates.
   class Sync
     SOURCE = "scarif".freeze
     BATCH_GAP = 10.minutes
-    OVERLAP = 10.minutes # re-read a little before the last sync, to be safe
     MAX_PAGES = 25
 
     STATUS_MAP = {
@@ -47,24 +50,35 @@ module Scarif
         return Outcome.new(ok: false, message: check.message, counts: {}) unless check.ok
       end
 
+      @answered_by_me = recently_answered_work_item_ids
       each_recent_item do |item|
         @counts[:read] += 1
-        unless mine?(item)
-          @counts[:not_mine] += 1
-          @skipped_orderers[orderer_label(item["enqueued_by"])] += 1
+        record = ExternalRecord.find_or_initialize_by(source: SOURCE, external_id: item["id"].to_s)
+        newly_answered = record.work_item_id.nil? && @answered_by_me.include?(item["id"].to_s)
+        # A skipped item stays skipped while unchanged, unless you now want everything.
+        if unchanged?(record, item) && !newly_answered && (record.work_item_id || @setting.scarif_only_mine)
+          record.work_item_id ? @counts[:unchanged] += 1 : skip(item)
           next
         end
 
-        record = ExternalRecord.find_or_initialize_by(source: SOURCE, external_id: item["id"].to_s)
-        next @counts[:unchanged] += 1 if unchanged?(record, item)
+        asks = nil
+        unless !@setting.scarif_only_mine || enqueued_by_me?(item) || newly_answered
+          asks = asks_for(item)
+          unless asks.any? { |ask| answered_by_me?(ask) }
+            skip(item)
+            remember(record, item, work_item: nil)
+            next
+          end
+        end
 
-        import(item, record)
+        import(item, record, asks:)
         @counts[:updated] += 1
+        progress! if (@counts[:read] % 50).zero?
       end
       infer_batches
 
-      summary = "Read #{@counts[:read]} recently changed Scarif #{'item'.pluralize(@counts[:read])}; " \
-                "#{@counts[:updated]} updated, #{@counts[:unchanged]} unchanged" \
+      summary = "Checked #{@counts[:read]} Scarif #{'item'.pluralize(@counts[:read])} from the last #{@setting.scarif_lookback_days} days; " \
+                "#{yours_count} #{yours_count == 1 ? 'is' : 'are'} yours (#{@counts[:updated]} updated, #{@counts[:unchanged]} unchanged)" \
                 "#{", #{@counts[:not_mine]} skipped (not yours)" if @counts[:not_mine].positive?}." \
                 "#{" Skipped items were enqueued by: #{skipped_breakdown}." if @counts[:not_mine].positive?}"
       @setting.update!(scarif_last_synced_at: @now, scarif_last_sync_summary: summary, scarif_sync_error: nil)
@@ -76,11 +90,9 @@ module Scarif
 
     private
 
-      # Pages newest-updated first and stops at the first item older than the cutoff.
+      # Pages newest-updated first and stops at the first item older than the window.
       def each_recent_item
-        # Until something has been imported, keep looking back the full window.
-        incremental = @setting.scarif_last_synced_at && ExternalRecord.where(source: SOURCE).exists?
-        cutoff = incremental ? @setting.scarif_last_synced_at - OVERLAP : @now - @setting.scarif_lookback_days.days
+        cutoff = @now - @setting.scarif_lookback_days.days
         cursor = nil
         MAX_PAGES.times do
           page = @client.work_items(cursor:)
@@ -95,11 +107,45 @@ module Scarif
         end
       end
 
-      def mine?(item)
-        return true unless @setting.scarif_only_mine
-
+      def enqueued_by_me?(item)
         orderer = item["enqueued_by"]
         orderer.is_a?(Hash) && orderer["kind"] != "service_account" && orderer["id"].to_s == @setting.scarif_user_id.to_s
+      end
+
+      def answered_by_me?(ask)
+        ask["answered_at"].present? && ask["answered_by"].to_s.casecmp?(@setting.scarif_user_email.to_s)
+      end
+
+      def asks_for(item)
+        return [] if item["jira_key"].blank?
+
+        @client.factory_asks(jira_key: item["jira_key"]).select { |ask| ask["work_item_id"].to_s == item["id"].to_s }
+      end
+
+      # The newest answered asks across Scarif (up to 100, one request), so an item
+      # you just answered is picked up even if answering didn't change the item.
+      def recently_answered_work_item_ids
+        return Set.new unless @setting.scarif_only_mine
+
+        @client.factory_asks(state: "answered").select { |ask| answered_by_me?(ask) }.to_set { |ask| ask["work_item_id"].to_s }
+      end
+
+      def skip(item)
+        @counts[:not_mine] += 1
+        @skipped_orderers[orderer_label(item["enqueued_by"])] += 1
+      end
+
+      def yours_count = @counts[:updated] + @counts[:unchanged]
+
+      def remember(record, item, work_item:)
+        record.update!(work_item:, jira_key: item["jira_key"].presence || item["display_key"],
+                       enqueued_by_id: item.dig("enqueued_by", "id")&.to_s,
+                       external_created_at: time(item["created_at"]), external_updated_at: time(item["updated_at"]))
+      end
+
+      # The first sync can check hundreds of items; leave a note Settings can show.
+      def progress!
+        @setting.update_columns(scarif_last_sync_summary: "Syncing… checked #{@counts[:read]} Scarif items so far.")
       end
 
       # Who enqueued a skipped item, for the sync summary.
@@ -122,7 +168,7 @@ module Scarif
           record.external_updated_at.to_f.round(3) == time(item["updated_at"]).to_f.round(3)
       end
 
-      def import(item, record)
+      def import(item, record, asks: nil)
         id = item["id"].to_s
         key = item["jira_key"].presence || item["display_key"].presence || "SCARIF-#{id.first(8)}"
         detail = @client.work_item(id)
@@ -137,15 +183,14 @@ module Scarif
                person_email: (@setting.scarif_user_email if orderer_is_me))
 
         run_ids = import_runs(id, detail)
-        finished_at = import_asks(id, item["jira_key"])
+        finished_at = import_asks(id, asks || asks_for(item))
         finish(id, item, detail, finished_at)
 
         work_item = WorkItem.find_by!(jira_key: key.upcase)
         reconcile_cost(id, work_item, run_ids, item["total_cost_usd"])
         work_item.update!(status: ledger_status(item))
 
-        record.update!(work_item:, jira_key: key, enqueued_by_id: item.dig("enqueued_by", "id")&.to_s,
-                       external_created_at: time(item["created_at"]), external_updated_at: time(item["updated_at"]))
+        remember(record, item, work_item:)
       end
 
       # Factory items: one agent run per node run (these carry cost).
@@ -183,10 +228,7 @@ module Scarif
       end
 
       # Returns the latest answer time, if any.
-      def import_asks(id, jira_key)
-        return nil if jira_key.blank?
-
-        asks = @client.factory_asks(jira_key:).select { |ask| ask["work_item_id"].to_s == id }
+      def import_asks(id, asks)
         asks.filter_map do |ask|
           ask_id = ask["id"]
           ingest("ask-#{ask_id}-opened", "wait_human_entered", ask["opened_at"],
