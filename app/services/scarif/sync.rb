@@ -36,6 +36,7 @@ module Scarif
       @setting = setting
       @now = now
       @counts = Hash.new(0)
+      @skipped_orderers = Hash.new(0)
     end
 
     def call
@@ -48,7 +49,11 @@ module Scarif
 
       each_recent_item do |item|
         @counts[:read] += 1
-        next @counts[:not_mine] += 1 unless mine?(item)
+        unless mine?(item)
+          @counts[:not_mine] += 1
+          @skipped_orderers[orderer_label(item["enqueued_by"])] += 1
+          next
+        end
 
         record = ExternalRecord.find_or_initialize_by(source: SOURCE, external_id: item["id"].to_s)
         next @counts[:unchanged] += 1 if unchanged?(record, item)
@@ -60,7 +65,8 @@ module Scarif
 
       summary = "Read #{@counts[:read]} recently changed Scarif #{'item'.pluralize(@counts[:read])}; " \
                 "#{@counts[:updated]} updated, #{@counts[:unchanged]} unchanged" \
-                "#{", #{@counts[:not_mine]} skipped (not yours)" if @counts[:not_mine].positive?}."
+                "#{", #{@counts[:not_mine]} skipped (not yours)" if @counts[:not_mine].positive?}." \
+                "#{" Skipped items were enqueued by: #{skipped_breakdown}." if @counts[:not_mine].positive?}"
       @setting.update!(scarif_last_synced_at: @now, scarif_last_sync_summary: summary, scarif_sync_error: nil)
       Outcome.new(ok: true, message: summary, counts: @counts.to_h)
     rescue Client::Error, EventIngest::Invalid => e
@@ -92,6 +98,21 @@ module Scarif
 
         orderer = item["enqueued_by"]
         orderer.is_a?(Hash) && orderer["kind"] != "service_account" && orderer["id"].to_s == @setting.scarif_user_id.to_s
+      end
+
+      # Who enqueued a skipped item, for the sync summary.
+      def orderer_label(orderer)
+        return "no one recorded" unless orderer.is_a?(Hash)
+        return "#{orderer['name'] || 'an automation'} (service account)" if orderer["kind"] == "service_account"
+
+        orderer["name"].presence || "user ##{orderer['id']}"
+      end
+
+      def skipped_breakdown
+        top = @skipped_orderers.sort_by { |name, count| [-count, name] }
+        shown = top.first(6).map { |name, count| "#{name} (#{count})" }
+        shown << "#{top.size - 6} others" if top.size > 6
+        shown.join(", ")
       end
 
       def unchanged?(record, item)

@@ -115,8 +115,12 @@ class ScarifSyncTest < ActiveSupport::TestCase
 
   test "work items enqueued by someone else are skipped unless asked for" do
     @client.add_item(id: "x1", jira_key: "OTHER-1", created_at: T, orderer: FakeScarifClient::OTHER_ID)
+    @client.add_item(id: "x2", jira_key: "OTHER-2", created_at: T, orderer: nil)
     outcome = sync
-    assert_equal 1, outcome.counts[:not_mine]
+    assert_equal 2, outcome.counts[:not_mine]
+    assert_match "Skipped items were enqueued by:", outcome.message
+    assert_match "Someone Else (1)", outcome.message
+    assert_match "no one recorded (1)", outcome.message
     assert_nil WorkItem.find_by(jira_key: "OTHER-1")
 
     @setting.update!(scarif_only_mine: false, scarif_last_synced_at: nil)
