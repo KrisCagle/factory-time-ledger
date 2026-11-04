@@ -78,7 +78,9 @@ module Scarif
 
       # Pages newest-updated first and stops at the first item older than the cutoff.
       def each_recent_item
-        cutoff = @setting.scarif_last_synced_at ? @setting.scarif_last_synced_at - OVERLAP : @now - @setting.scarif_lookback_days.days
+        # Until something has been imported, keep looking back the full window.
+        incremental = @setting.scarif_last_synced_at && ExternalRecord.where(source: SOURCE).exists?
+        cutoff = incremental ? @setting.scarif_last_synced_at - OVERLAP : @now - @setting.scarif_lookback_days.days
         cursor = nil
         MAX_PAGES.times do
           page = @client.work_items(cursor:)

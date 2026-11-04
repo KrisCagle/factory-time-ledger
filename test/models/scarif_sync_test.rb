@@ -200,4 +200,12 @@ class ScarifSyncTest < ActiveSupport::TestCase
     refute outcome.ok
     assert_match "401", @setting.reload.scarif_sync_error
   end
+
+  test "keeps looking back the full window until something is imported" do
+    @client.add_item(id: "o1", jira_key: "OTHER-1", created_at: T, orderer: FakeScarifClient::OTHER_ID)
+    sync
+    @client.add_item(id: "m1", jira_key: "MINE-1", created_at: T + 1.hour) # older than the last sync
+    sync(now: @now + 5.minutes)
+    assert WorkItem.find_by(jira_key: "MINE-1")
+  end
 end
