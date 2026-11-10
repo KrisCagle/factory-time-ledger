@@ -3,6 +3,9 @@ class LedgerSetting < ApplicationRecord
   validates :split_rule, inclusion: { in: Attribution::Engine::RULES.map(&:to_s) }
   validates :idle_gap_minutes, numericality: { only_integer: true, in: 1..60 }
   validates :rounding_minutes, numericality: { only_integer: true, in: 0..60 }
+  FACTORY_TIME_MODES = %w[shared full off].freeze
+  validates :factory_time_mode, inclusion: { in: FACTORY_TIME_MODES }
+  validates :factory_time_activity, inclusion: { in: Activity::ALL }
   validates :scarif_lookback_days, numericality: { only_integer: true, in: 1..90 }
 
   def self.current = first_or_create!

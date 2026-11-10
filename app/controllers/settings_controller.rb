@@ -17,7 +17,7 @@ class SettingsController < ApplicationController
 
   def update
     setting = LedgerSetting.current
-    if setting.update(params.require(:ledger_setting).permit(:split_rule, :idle_gap_minutes, :rounding_minutes))
+    if setting.update(params.require(:ledger_setting).permit(:split_rule, :idle_gap_minutes, :rounding_minutes, :factory_time_mode, :factory_time_activity))
       redirect_to settings_path, notice: "Settings saved."
     else
       redirect_to settings_path, alert: setting.errors.full_messages.to_sentence

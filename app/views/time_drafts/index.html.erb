@@ -33,7 +33,7 @@
     <p class="empty">No drafts for this day. Click "Refresh drafts" to build them from the day's attention data.</p>
   <% else %>
     <table class="table drafts">
-      <thead><tr><th>Ticket</th><th>Harvest task</th><th class="num">Direct + overhead</th><th>Hours</th><th>Notes</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Ticket</th><th>Harvest task</th><th class="num">Tracked + overhead + factory</th><th>Hours</th><th>Notes</th><th>Status</th><th></th></tr></thead>
       <tbody>
         <% @drafts.each do |draft| project = draft.work_item.project %>
           <tr class="<%= 'row-sent' if draft.status == 'sent' %>">
@@ -46,7 +46,7 @@
                 <div class="muted small"><%= harvest_mapping_label(project, draft.activity) %></div>
               <% end %>
             </td>
-            <td class="num small"><%= duration(draft.direct_seconds) %> + <%= duration(draft.overhead_seconds) %></td>
+            <td class="num small"><%= duration(draft.direct_seconds) %> + <%= duration(draft.overhead_seconds) %> + <%= duration(draft.factory_seconds) %></td>
             <% if draft.status == "sent" %>
               <td><%= draft.hours %></td>
               <td class="small"><%= draft.notes %></td>

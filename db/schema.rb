@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_10_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_10_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -144,6 +144,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_000001) do
     t.datetime "foreman_last_synced_at"
     t.text "foreman_last_sync_summary"
     t.text "foreman_sync_error"
+    t.string "factory_time_mode", default: "shared", null: false
+    t.string "factory_time_activity", default: "development", null: false
   end
 
   create_table "people", force: :cascade do |t|
@@ -201,6 +203,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_000001) do
     t.datetime "updated_at", null: false
     t.datetime "harvest_verified_at"
     t.text "harvest_verify_note"
+    t.integer "factory_seconds", default: 0, null: false
     t.index ["person_id", "work_item_id", "spent_on", "activity"], name: "index_time_drafts_uniqueness", unique: true
     t.index ["person_id"], name: "index_time_drafts_on_person_id"
     t.index ["work_item_id"], name: "index_time_drafts_on_work_item_id"

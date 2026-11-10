@@ -14,7 +14,8 @@
 </div>
 
 <div class="stats">
-  <div class="stat"><span class="stat-label">Attributed</span><span class="stat-value"><%= duration(@result.total_attributed_seconds) %></span></div>
+  <div class="stat"><span class="stat-label">Attributed</span><span class="stat-value"><%= duration(@attribution.total_seconds) %></span></div>
+  <div class="stat"><span class="stat-label">Factory time</span><span class="stat-value"><%= duration(@lines.sum(&:factory_seconds)) %></span></div>
   <div class="stat"><span class="stat-label">Direct on tickets</span><span class="stat-value"><%= duration(@result.lines.sum(&:direct_seconds)) %></span></div>
   <div class="stat"><span class="stat-label">Batch overhead</span><span class="stat-value"><%= duration(@result.lines.sum(&:overhead_seconds)) %></span></div>
   <div class="stat"><span class="stat-label">Unattributed</span><span class="stat-value <%= 'warn' if @result.unattributed_seconds.positive? %>"><%= duration(@result.unattributed_seconds) %></span></div>
@@ -53,7 +54,7 @@
     <p class="empty">Nothing attributed yet.</p>
   <% else %>
     <table class="table">
-      <thead><tr><th>Ticket</th><th>Activity</th><th class="num">Direct</th><th class="num">Overhead share</th><th class="num">Total</th></tr></thead>
+      <thead><tr><th>Ticket</th><th>Activity</th><th class="num">Direct</th><th class="num">Overhead share</th><th class="num">Factory time</th><th class="num">Total</th></tr></thead>
       <tbody>
         <% @lines.each do |line| item = @attribution.work_items_by_id[line.work_item_id] %>
           <tr>
@@ -61,6 +62,7 @@
             <td><%= activity_label(line.activity) %></td>
             <td class="num"><%= duration(line.direct_seconds) %></td>
             <td class="num"><%= line.overhead_seconds.positive? ? duration(line.overhead_seconds) : "—" %></td>
+            <td class="num"><%= line.factory_seconds.positive? ? duration(line.factory_seconds) : "—" %></td>
             <td class="num strong"><%= duration(line.total_seconds) %></td>
           </tr>
         <% end %>

@@ -37,7 +37,7 @@ jobs:
       - name: Prepare database (runs every migration from scratch)
         run: bin/rails db:create db:migrate
       - name: Attribution engine (no database)
-        run: ruby -Ilib test/lib/attribution_engine_test.rb
+        run: ruby -Ilib test/lib/attribution_engine_test.rb && ruby -Ilib test/lib/factory_time_test.rb
       - name: Full test suite
         run: |
           set -o pipefail

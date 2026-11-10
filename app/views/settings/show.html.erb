@@ -10,6 +10,12 @@
     <label>Idle after (minutes)
       <%= f.number_field :idle_gap_minutes, min: 1, max: 60, class: "input input-small" %>
     </label>
+    <label>Factory time (the factory's working time on a ticket goes on your draft for it)
+      <%= f.select :factory_time_mode, [["On: tickets running at once share that time (total never exceeds real time)", "shared"], ["On: each ticket gets its full time", "full"], ["Off", "off"]], {}, class: "input" %>
+    </label>
+    <label>Log factory time as
+      <%= f.select :factory_time_activity, Activity::ALL.map { |a| [activity_label(a), a] }, {}, class: "input" %>
+    </label>
     <label>Round entries to (minutes)
       <%= f.number_field :rounding_minutes, min: 0, max: 60, class: "input input-small" %>
     </label>

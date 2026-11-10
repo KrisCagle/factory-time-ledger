@@ -11,5 +11,5 @@ class TimeDraft < ApplicationRecord
   scope :for_day, ->(person, date) { where(person:, spent_on: date) }
 
   def editable? = %w[draft failed approved].include?(status)
-  def total_seconds = direct_seconds + overhead_seconds
+  def total_seconds = direct_seconds + overhead_seconds + factory_seconds
 end
