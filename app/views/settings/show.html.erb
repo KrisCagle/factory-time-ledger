@@ -97,6 +97,47 @@
   <p class="hint">Sending to Harvest stays blocked until the connection is checked, the account tracks durations, and each project is one you've loaded from Harvest. That way demo data or a mistyped ID can't land on the wrong project.</p>
 </section>
 
+<section class="card" id="foreman">
+  <div class="card-head">
+    <h2>Foreman connection</h2>
+    <%= status_pill(@foreman_signed_in ? "connected" : "not connected") %>
+  </div>
+  <p class="hint">Shows what Foreman knows about each ticket's process: which step it's at, how long each step waited for someone, and how long it was worked on. The ledger only reads from Foreman.</p>
+
+  <% if @foreman_signed_in %>
+    <dl class="facts">
+      <dt>Foreman</dt><dd><%= ForemanApi.base_url %></dd>
+      <dt>Signed in as</dt><dd><%= @setting.foreman_name.presence || @setting.foreman_email %><%= " (#{@setting.foreman_email})" if @setting.foreman_name.present? && @setting.foreman_name != @setting.foreman_email %></dd>
+      <dt>Sign-in ends</dt><dd>in <%= distance_of_time_in_words(Time.current, @setting.foreman_token_expires_at) %> (Foreman sign-ins last up to 12 hours)</dd>
+      <dt>Scopes</dt><dd><%= @setting.foreman_scopes.presence&.join(", ") || "none granted (a roster entry is enough to read inferred runs)" %></dd>
+      <dt>Last refresh</dt>
+      <dd>
+        <% if @setting.foreman_last_synced_at %><%= time_ago_in_words(@setting.foreman_last_synced_at) %> ago<% else %>not yet<% end %>
+        <% if @setting.foreman_last_sync_summary.present? %><div class="muted small"><%= @setting.foreman_last_sync_summary %></div><% end %>
+        <% if ForemanApi::Poller.syncing? %><div class="small warn">Reading from Foreman now. Refresh to see progress.</div><% end %>
+      </dd>
+      <dt>Tickets Foreman follows</dt><dd><%= @foreman_followed %></dd>
+    </dl>
+  <% else %>
+    <ol class="steps">
+      <li>Click <strong>Sign in to Foreman</strong>. Foreman opens and asks you to approve <code>factory-time-ledger</code>.</li>
+      <li>Pick <strong>everything you can do</strong> (not "task surface only"), and how long the sign-in lasts (up to 12 hours).</li>
+      <li>You come back here, and the ledger reads your tickets' process data.</li>
+    </ol>
+    <% if @setting.foreman_token.present? %><p class="small warn">Your last Foreman sign-in has ended. Sign in again to keep refreshing.</p><% end %>
+  <% end %>
+  <% if @setting.foreman_sync_error.present? %><p class="small warn">Last refresh failed: <%= @setting.foreman_sync_error %></p><% end %>
+
+  <div class="actions">
+    <% if @foreman_signed_in %>
+      <%= button_to "Refresh from Foreman", sync_foreman_connection_path, class: "btn btn-primary" %>
+      <%= button_to "Sign out", sign_out_foreman_connection_path, method: :delete, class: "btn btn-ghost" %>
+    <% else %>
+      <%= button_to "Sign in to Foreman", sign_in_foreman_connection_path, class: "btn btn-primary", data: { turbo: false } %>
+    <% end %>
+  </div>
+</section>
+
 <section class="card" id="scarif">
   <div class="card-head">
     <h2>Scarif connection</h2>
@@ -246,7 +287,7 @@
 <section class="card">
   <h2>Connecting factories</h2>
   <p>Factories post events to <code>POST <%= request.base_url %>/api/v1/events</code> and attention heartbeats to <code>POST <%= request.base_url %>/api/v1/attention</code>. See the README for the payload format.</p>
-  <p class="hint">API token: <%= ENV["LEDGER_API_TOKEN"].present? ? "set (send it as X-Ledger-Token)" : "not set, so local requests are accepted without one" %>. Harvest: <%= Harvest::Client.configured? ? "token set" : "not connected (dry run)" %>. Scarif: <%= Scarif::Client.configured? ? "token set" : "not connected" %>.</p>
+  <p class="hint">API token: <%= ENV["LEDGER_API_TOKEN"].present? ? "set (send it as X-Ledger-Token)" : "not set, so local requests are accepted without one" %>. Harvest: <%= Harvest::Client.configured? ? "token set" : "not connected (dry run)" %>. Scarif: <%= Scarif::Client.configured? ? "token set" : "not connected" %>. Foreman: <%= ForemanApi.signed_in? ? "signed in" : "not signed in" %>.</p>
 </section>
 
 <% if @demo_present %>

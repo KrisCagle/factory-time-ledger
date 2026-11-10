@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_29_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_10_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -71,6 +71,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000001) do
     t.index ["work_item_id"], name: "index_external_records_on_work_item_id"
   end
 
+  create_table "foreman_runs", force: :cascade do |t|
+    t.bigint "work_item_id", null: false
+    t.string "run_id"
+    t.boolean "followed", default: true, null: false
+    t.string "workflow"
+    t.string "workflow_version"
+    t.string "client"
+    t.string "position"
+    t.string "status"
+    t.string "state"
+    t.boolean "dormant", default: false, null: false
+    t.jsonb "tasks", default: [], null: false
+    t.jsonb "timeline", default: [], null: false
+    t.datetime "run_started_at"
+    t.datetime "run_ended_at"
+    t.datetime "foreman_built_at"
+    t.datetime "fetched_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["work_item_id"], name: "index_foreman_runs_on_work_item_id", unique: true
+  end
+
   create_table "harvest_projects", force: :cascade do |t|
     t.bigint "harvest_id", null: false
     t.string "name", null: false
@@ -110,6 +132,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000001) do
     t.text "scarif_sync_error"
     t.boolean "scarif_only_mine", default: true, null: false
     t.integer "scarif_lookback_days", default: 14, null: false
+    t.text "foreman_token"
+    t.string "foreman_token_id"
+    t.datetime "foreman_token_expires_at"
+    t.string "foreman_email"
+    t.string "foreman_name"
+    t.string "foreman_surface"
+    t.jsonb "foreman_scopes", default: [], null: false
+    t.text "foreman_pending_verifier"
+    t.string "foreman_pending_state"
+    t.datetime "foreman_last_synced_at"
+    t.text "foreman_last_sync_summary"
+    t.text "foreman_sync_error"
   end
 
   create_table "people", force: :cascade do |t|
@@ -195,6 +229,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_29_000001) do
   add_foreign_key "attention_spans", "work_items"
   add_foreign_key "batches", "people", column: "started_by_id"
   add_foreign_key "external_records", "work_items"
+  add_foreign_key "foreman_runs", "work_items"
   add_foreign_key "pipeline_events", "people"
   add_foreign_key "pipeline_events", "work_items"
   add_foreign_key "time_drafts", "people"

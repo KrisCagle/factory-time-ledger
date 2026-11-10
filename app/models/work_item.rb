@@ -7,6 +7,7 @@ class WorkItem < ApplicationRecord
   has_many :agent_runs, dependent: :destroy
   has_many :attention_spans, dependent: :nullify
   has_many :time_drafts, dependent: :destroy
+  has_one :foreman_run, dependent: :destroy
 
   validates :jira_key, presence: true, uniqueness: true
   validates :source, presence: true

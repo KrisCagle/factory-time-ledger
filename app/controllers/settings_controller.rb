@@ -9,6 +9,8 @@ class SettingsController < ApplicationController
     @checklist = GoLiveChecklist.new(setting: @setting)
     @testable_projects = @checklist.real_mapped_projects
     @demo_present = DemoData.present?
+    @foreman_signed_in = ForemanApi.signed_in?(@setting)
+    @foreman_followed = ForemanRun.where(followed: true).count
     @scarif_configured = Scarif::Client.configured?
     @scarif_ticket_count = ExternalRecord.where(source: Scarif::Sync::SOURCE).distinct.count(:work_item_id)
   end

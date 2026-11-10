@@ -59,6 +59,63 @@
   </section>
 </div>
 
+<% run = @work_item.foreman_run %>
+<% if run %>
+  <section class="card" id="foreman-process">
+    <div class="card-head">
+      <h2>Process in Foreman</h2>
+      <span class="muted small">checked <%= time_ago_in_words(run.fetched_at) %> ago</span>
+    </div>
+    <% if !run.followed %>
+      <p class="empty">Foreman doesn't follow <%= @work_item.jira_key %> (no inferred run for it).</p>
+    <% else %>
+      <p class="muted small">
+        <%= run.workflow %><%= "@#{run.workflow_version}" if run.workflow_version.present? %>
+        <% if run.client.present? %> · client <%= run.client %><% end %>
+        · <% if run.status == "completed" %>completed<% else %>at <strong><%= run.position.to_s.humanize %></strong>, <%= run.state_label %><% end %>
+        <%= " · dormant" if run.dormant %>
+      </p>
+      <div class="stats">
+        <div class="stat"><span class="stat-label">Waiting for someone</span><span class="stat-value"><%= duration(run.total_wait_seconds) %></span></div>
+        <div class="stat"><span class="stat-label">Being worked on</span><span class="stat-value"><%= duration(run.total_work_seconds) %></span></div>
+        <div class="stat"><span class="stat-label">Steps visited</span><span class="stat-value"><%= run.steps.size %></span></div>
+      </div>
+      <% harvest_id = LedgerSetting.current.harvest_user_id %>
+      <table class="table">
+        <thead><tr><th>Step</th><th>Entered</th><th class="num">Waited</th><th class="num">Worked</th><th>Picked up by</th><th>Outcome</th></tr></thead>
+        <tbody>
+          <% run.steps.each do |step| %>
+            <tr>
+              <td><%= step.node.to_s.humanize %></td>
+              <td class="small"><%= step.entered_at&.strftime("%b %-d, %-l:%M %p") || "—" %></td>
+              <td class="num"><%= duration(step.wait_seconds) %></td>
+              <td class="num"><%= step.claimed_at ? duration(step.work_seconds) : "—" %></td>
+              <td class="small">
+                <% if step.mine?(harvest_id) %><strong>You</strong><% elsif step.implementor_type.present? %><%= step.implementor_type.humanize %><% else %>—<% end %>
+                <% if step.claim_source.present? && step.claim_source != "none" %><span class="muted">(seen in <%= step.claim_source %>)</span><% end %>
+              </td>
+              <td class="small"><%= step.open? ? "in progress" : step.outcome.to_s.humanize %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      <% if run.timeline.present? %>
+        <h3>Foreman timeline</h3>
+        <ol class="events">
+          <% run.timeline.each do |entry| %>
+            <li class="event">
+              <span class="event-time"><%= Time.zone.parse(entry["at"].to_s)&.strftime("%b %-d, %-l:%M %p") %></span>
+              <span class="event-label"><%= entry["summary"].presence || entry["kind"] %></span>
+              <% actor = entry["actor"].is_a?(Hash) ? (entry["actor"]["name"] || entry["actor"]["email"] || entry["actor"]["id"]) : entry["actor"] %>
+              <% if actor.present? %><span class="muted small">— <%= actor %></span><% end %>
+            </li>
+          <% end %>
+        </ol>
+      <% end %>
+    <% end %>
+  </section>
+<% end %>
+
 <section class="card">
   <h2>Pipeline timeline</h2>
   <ol class="events">

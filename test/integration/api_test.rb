@@ -123,5 +123,70 @@ class ApiTest < ActionDispatch::IntegrationTest
   ensure
     ENV.delete("SCARIF_API_TOKEN")
   end
+
+  # --- Foreman sign-in ---------------------------------------------------------------
+
+  test "sign in sends you to Foreman's approval page and remembers the attempt" do
+    post "/foreman_connection/sign_in"
+    assert_response :redirect
+    url = URI(response.location)
+    assert_equal "/cli-auth/authorize", url.path
+    query = URI.decode_www_form(url.query).to_h
+    setting = LedgerSetting.current
+    assert_equal setting.foreman_pending_state, query["state"]
+    assert_equal ForemanApi::Client.challenge_for(setting.foreman_pending_verifier), query["challenge"]
+    assert_equal "80", query["port"] # integration tests run on port 80
+  end
+
+  test "a callback that doesn't match the sign-in started here is refused" do
+    LedgerSetting.current.update!(foreman_pending_state: "expected", foreman_pending_verifier: "v")
+    get "/callback", params: { code: "c", state: "someone-else" }
+    assert_redirected_to settings_path(anchor: "foreman")
+    assert_match "didn't match", flash[:alert]
+    assert_nil LedgerSetting.current.foreman_token
+  end
+
+  test "a matching callback trades the code for a token" do
+    LedgerSetting.current.update!(foreman_pending_state: "st", foreman_pending_verifier: "ver")
+    original = ForemanApi::Client.instance_method(:exchange)
+    received = nil
+    ForemanApi::Client.define_method(:exchange) do |code:, verifier:|
+      received = [code, verifier]
+      { "id" => 7, "token" => "tok", "expiresAt" => 12.hours.from_now.iso8601, "email" => "kris@example.com",
+        "name" => "Kris Cagle", "surface" => "all", "scopes" => [] }
+    end
+    get "/callback", params: { code: "the-code", state: "st" }
+    assert_equal %w[the-code ver], received
+    setting = LedgerSetting.current
+    assert_equal "tok", setting.foreman_token
+    assert_nil setting.foreman_pending_verifier
+    assert ForemanApi.signed_in?(setting)
+    assert_match "Signed in to Foreman as Kris Cagle", flash[:notice]
+  ensure
+    ForemanApi::Client.define_method(:exchange, original)
+  end
+
+  test "settings and ticket pages render with Foreman data" do
+    EventIngest.call(event_payload)
+    item = WorkItem.first
+    LedgerSetting.current.update!(foreman_token: "tok", foreman_token_expires_at: 2.hours.from_now, foreman_email: "kris@example.com")
+    ForemanRun.create!(work_item: item, followed: true, workflow: "deliver-story", position: "review", state: "working",
+                       fetched_at: Time.current, tasks: [FakeForemanClient.task("implement", 3.hours.ago, claimed: 2.hours.ago, left: 1.hour.ago)],
+                       timeline: [{ "at" => 1.hour.ago.iso8601, "summary" => "Approved", "actor" => { "name" => "Ron" } }])
+    get "/settings"
+    assert_response :success
+    assert_match "Foreman connection", response.body
+    assert_match "Refresh from Foreman", response.body
+    get "/tickets/#{item.id}"
+    assert_response :success
+    assert_match "Process in Foreman", response.body
+    assert_match "Approved", response.body
+  end
+
+  test "sign out forgets the token" do
+    LedgerSetting.current.update!(foreman_token: "tok", foreman_token_expires_at: 2.hours.from_now)
+    delete "/foreman_connection/sign_out"
+    assert_nil LedgerSetting.current.foreman_token
+  end
 end
 

@@ -26,6 +26,13 @@ Rails.application.routes.draw do
     post :check
     post :sync
   end
+  resource :foreman_connection, only: [] do
+    post :sign_in
+    post :sync
+    delete :sign_out
+  end
+  # Foreman's command-line sign-in sends the browser back here (the path is fixed by Foreman).
+  get "callback", to: "foreman_connections#callback", as: :foreman_callback
   resources :people, only: %i[create]
   resource :demo_data, only: :destroy, controller: "demo_data"
   post "attention/heartbeat", to: "attention#heartbeat", as: :attention_heartbeat
