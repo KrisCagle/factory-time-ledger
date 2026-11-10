@@ -97,6 +97,27 @@ What it reads, and what it becomes here:
 - Scarif doesn't record active human time, so that still comes from heartbeats (the tracker, or a factory's UI).
 - Repos from Scarif show up under **Settings → Projects → Harvest**; map them to a Harvest project before their time can be sent.
 
+## Connecting Foreman (read-only)
+
+[Foreman](https://github.com/twinsunllc/foreman) follows each Jira story through Twin Sun's process. The ledger can show, on each ticket, which step it's at and how long each step **waited for someone** versus **was worked on**. Nothing changes in Foreman: apart from the sign-in exchange, every call is a `GET`.
+
+1. In **Settings → Foreman connection**, click **Sign in to Foreman**. Use a browser where you're signed in to Foreman.
+2. Foreman asks you to approve `factory-time-ledger`. Pick **everything you can do** (the read endpoints are on the administration API, which "task surface only" can't reach), and how long the sign-in lasts, up to 12 hours.
+3. Foreman sends you back to `http://127.0.0.1:3001/callback`, and the ledger reads your tickets.
+
+This is Foreman's own command-line sign-in (`foreman login`): a one-time code plus a secret only the ledger holds (PKCE). The token is stored in the ledger's local database, ends on its own, and can be revoked any time in Foreman's token list. Sign-ins don't renew, so sign in again when Settings says it has ended.
+
+| Foreman `/api/administration/v1` | In the ledger |
+|---|---|
+| `GET /me` | Who you're signed in as, and your scopes |
+| `GET /inferred-runs/jira:<KEY>` | The ticket's workflow, current step, and each step's entered / claimed / left times |
+| `GET /stories/<KEY>/timeline` | The engine's timeline, where your account has a granted scope (skipped quietly otherwise) |
+
+- Reading inferred runs needs a roster entry in Foreman; timelines need a granted scope. Both come from a Foreman administrator.
+- "Picked up by" shows **You** when Foreman's claimer is your Harvest user. Other people show by type, since Foreman identifies them by Jira or Harvest IDs.
+- It refreshes hourly while signed in (Foreman saves inferred runs hourly); `FOREMAN_SYNC_MINUTES` changes that.
+- No money figures come from Foreman.
+
 ## Sending events from a factory
 
 `POST /api/v1/events` with JSON. Send `{"events": [ ... ]}` to post several at once. Re-sending an event with the same `source` + `event_id` is ignored, so retries are safe.
@@ -179,5 +200,6 @@ GitHub Actions runs every migration from scratch and the full suite on each push
 
 - **ai-dev-factory**: post events and attention heartbeats from the factory UI's inbox and review walkthrough.
 - **Local Claude Code**: hooks that post events for sessions tied to a Jira key.
+- **Foreman**: read-only process view done (see *Connecting Foreman*). Next, possibly, Foreman inbox activity as attention time, and the ledger as a Foreman implementor for a log-time step (needs a registry contract).
 - **Scarif**: read-only adapter done (see *Connecting Scarif*). Next, optionally, Scarif sending attention pings from its ask and review pages, so time answering asks is tracked automatically.
 - Harvest timestamp-mode accounts, per-person views for a team lead, and weekly rollups.
