@@ -35,7 +35,11 @@
     </label>
     <button type="button" class="btn btn-primary" data-timer-toggle>Start working</button>
   </div>
-  <p class="hint">In real use, factories and tools send these heartbeats automatically. This button lets you try it by hand.</p>
+  <label class="inline-check small">
+    <input type="checkbox" data-timer-target="stopwatch" checked>
+    Keep counting while I work in other apps (Scarif, GitHub, Jira…) until I press Stop
+  </label>
+  <p class="hint">Leave this tab open while it runs. With the box unticked, it only counts while this tab is visible and you've been active in it. Closing the tab or putting the computer to sleep ends the block. To switch activity, press Stop, change it, and start again.</p>
 </section>
 
 <script>
@@ -64,7 +68,8 @@
   }
 
   async function beat() {
-    if (document.hidden || Date.now() - lastInput > IDLE_MS) { status.textContent = "Paused (idle)"; return; }
+    const stopwatch = root.querySelector('[data-timer-target="stopwatch"]')?.checked;
+    if (!stopwatch && (document.hidden || Date.now() - lastInput > IDLE_MS)) { status.textContent = "Paused (idle)"; return; }
     try {
       const res = await fetch(root.dataset.url, { method: "POST", body: body(), headers: { "X-CSRF-Token": token, "Accept": "application/json" } });
       const json = await res.json();
@@ -78,12 +83,12 @@
       clearInterval(timer); timer = null;
       button.textContent = "Start working"; button.classList.add("btn-primary"); button.classList.remove("btn-danger");
       status.textContent = "Stopped. Reload to see it on the timeline.";
-      root.querySelectorAll("select").forEach(s => s.disabled = false);
+      root.querySelectorAll("select, input[type=checkbox]").forEach(s => s.disabled = false);
     } else {
       lastInput = Date.now(); started = Date.now();
       beat(); timer = setInterval(beat, 30000);
       button.textContent = "Stop"; button.classList.remove("btn-primary"); button.classList.add("btn-danger");
-      root.querySelectorAll("select").forEach(s => s.disabled = true);
+      root.querySelectorAll("select, input[type=checkbox]").forEach(s => s.disabled = true);
     }
   });
 })();
