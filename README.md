@@ -185,6 +185,20 @@ The rules live in `lib/attribution/engine.rb`, plain Ruby with no Rails dependen
 
 Refreshing drafts re-runs this for the day. Approved and sent drafts are never changed by a refresh.
 
+## Factory time
+
+While a factory works your tickets, you're free to do other things, and the factory's working time on each ticket becomes time on your draft for it. At the end of the day you review one draft per ticket, approve, and send.
+
+The rules (`lib/attribution/factory_time.rb`):
+
+- A ticket's factory time is when at least one agent run was working on it. Two runs on the same ticket at once count once.
+- When several tickets are worked at the same moment, by default they **share** that stretch, so the day's total never exceeds the time that actually passed. Settings can give each ticket its **full** time instead, or turn factory time **off**.
+- Time with nothing running isn't counted, and time you tracked by hand isn't counted twice.
+- It's logged as **Development** by default (Settings can change it), with a note like "includes 80m of factory time".
+- Approved and sent drafts never change when more factory time arrives later.
+
+Agent runs come from the factories: Scarif's node runs (Settings → Scarif connection) and events from any factory (see *Sending events from a factory*).
+
 ## Tests
 
 ```bash
