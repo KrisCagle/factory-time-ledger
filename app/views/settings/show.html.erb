@@ -149,7 +149,7 @@
       <%= status_pill("not connected") %>
     <% end %>
   </div>
-  <p class="hint">Reads the Scarif work items you enqueued or answered an ask on (read-only), so their agent time, agent cost, asks, and batches show up here next to everything else. Needs a Scarif personal API token with just the <code>work_item:read</code> scope.</p>
+  <p class="hint">Reads the Scarif work items you enqueued, answered an ask on, or added to the ledger (read-only), so their agent time, agent cost, asks, and batches show up here next to everything else. Needs a Scarif personal API token with just the <code>work_item:read</code> scope.</p>
 
   <% if !@scarif_configured %>
     <ol class="steps">
@@ -183,7 +183,7 @@
     <% if @setting.scarif_sync_error.present? %><p class="small warn">Last sync failed: <%= @setting.scarif_sync_error %></p><% end %>
 
     <%= form_with model: @setting, url: scarif_connection_path, method: :patch, class: "form-row" do |f| %>
-      <label class="inline-check"><%= f.check_box :scarif_only_mine %> Only my work (items I enqueued or answered an ask on)</label>
+      <label class="inline-check"><%= f.check_box :scarif_only_mine %> Only my work (items I enqueued, answered an ask on, or added to the ledger)</label>
       <label>Look back (days) <%= f.number_field :scarif_lookback_days, min: 1, max: 90, class: "input input-small" %></label>
       <%= f.submit "Save", class: "btn btn-small" %>
     <% end %>

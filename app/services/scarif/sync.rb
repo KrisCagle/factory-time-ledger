@@ -8,8 +8,9 @@ module Scarif
   #                        approvals and rework (approve / revise, reject)
   #   enqueued together  → a batch (same person, each within BATCH_GAP of the last)
   #
-  # "Your" work (the default) is anything you enqueued or answered an ask on:
-  # most Scarif work is enqueued in bulk by someone else and reviewed by you.
+  # "Your" work (the default) is anything you enqueued, answered an ask on, or
+  # already have in the ledger: most Scarif work is enqueued in bulk by someone
+  # else and reviewed by you, and adding a ticket by hand asks Scarif to fill it in.
   #
   # Every item in the lookback window is listed each sync (cheap: one request
   # per 100 items), but an item is only looked at closely when it changed since
@@ -51,10 +52,12 @@ module Scarif
       end
 
       @answered_by_me = recently_answered_work_item_ids
+      @tracked_keys = WorkItem.pluck(:jira_key).to_set # tickets already in the ledger count as yours
       each_recent_item do |item|
         @counts[:read] += 1
         record = ExternalRecord.find_or_initialize_by(source: SOURCE, external_id: item["id"].to_s)
-        newly_answered = record.work_item_id.nil? && @answered_by_me.include?(item["id"].to_s)
+        newly_answered = record.work_item_id.nil? &&
+                         (@answered_by_me.include?(item["id"].to_s) || tracked?(item))
         # A skipped item stays skipped while unchanged, unless you now want everything.
         if unchanged?(record, item) && !newly_answered && (record.work_item_id || @setting.scarif_only_mine)
           record.work_item_id ? @counts[:unchanged] += 1 : skip(item)
@@ -110,6 +113,12 @@ module Scarif
       def enqueued_by_me?(item)
         orderer = item["enqueued_by"]
         orderer.is_a?(Hash) && orderer["kind"] != "service_account" && orderer["id"].to_s == @setting.scarif_user_id.to_s
+      end
+
+      # A ticket you added to the ledger yourself (or that came from another factory).
+      def tracked?(item)
+        key = item["jira_key"].to_s.upcase
+        key.present? && @tracked_keys.include?(key)
       end
 
       def answered_by_me?(ask)

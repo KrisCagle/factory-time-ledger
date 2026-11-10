@@ -266,5 +266,18 @@ class ScarifSyncTest < ActiveSupport::TestCase
     assert_equal batch, WorkItem.find_by!(jira_key: "JAMI-4").batch
     assert_equal 1, WorkItem.find_by!(jira_key: "JAMI-4").rework_count
   end
+
+  test "a ticket you added to the ledger is filled in from Scarif, whoever enqueued it" do
+    other_item_with_ask(id: "j5", key: "CRBDEV-154", answered_by: "eric@example.com")
+    sync
+    assert_nil ExternalRecord.find_by!(external_id: "j5").work_item_id, "not yours yet"
+
+    EventIngest.call(event_payload("source" => "manual", "jira_key" => "crbdev-154", "batch_id" => nil, "event_type" => "ticket_added"))
+    sync(now: @now + 5.minutes)
+    item = WorkItem.find_by!(jira_key: "CRBDEV-154")
+    assert_equal ExternalRecord.find_by!(external_id: "j5").work_item, item
+    assert_equal BigDecimal("2.0"), item.agent_cost_usd
+    assert_includes item.pipeline_events.map(&:event_type), "human_review_approved"
+  end
 end
 
