@@ -31,4 +31,11 @@ class EventIngestTest < ActiveSupport::TestCase
   test "rejects events missing required fields" do
     assert_raises(EventIngest::Invalid) { EventIngest.call(event_payload("jira_key" => nil)) }
   end
+
+  test "a ticket keeps the project it was first given" do
+    EventIngest.call(event_payload("repo" => "twinsunllc/crb-label-you-chose"))
+    EventIngest.call(event_payload("source" => "scarif", "repo" => "twinsunllc/crbmonitor-web"))
+    assert_equal "twinsunllc/crb-label-you-chose", WorkItem.find_by!(jira_key: "TEST-1").project.repo
+  end
 end
+

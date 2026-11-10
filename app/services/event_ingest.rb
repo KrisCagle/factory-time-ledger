@@ -53,7 +53,9 @@ class EventIngest
       item = WorkItem.find_or_initialize_by(jira_key: @payload["jira_key"].to_s.upcase)
       item.source = source if item.new_record?
       item.summary = @payload["summary"] if @payload["summary"].present?
-      item.project = Project.for_repo!(@payload["repo"]) if @payload["repo"].present?
+      # A ticket keeps the project it was given first (for example, one you added by
+      # hand and mapped to Harvest); a later factory's repo name doesn't move it.
+      item.project ||= Project.for_repo!(@payload["repo"]) if @payload["repo"].present?
       item.batch = upsert_batch(person) if @payload["batch_id"].present?
       item.agent_points = Integer(@payload["agent_points"]) if @payload["agent_points"].present?
       item.enqueued_at ||= occurred_at
